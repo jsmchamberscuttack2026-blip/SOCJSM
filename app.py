@@ -153,12 +153,24 @@ def log_security_event(event_type, severity="info", details="", ip="127.0.0.1", 
 #  ROUTES & API ENDPOINTS
 # =========================================================
 
+def get_soc_html():
+    index_path = os.path.join(BASE_DIR, 'index.html')
+    if not os.path.exists(index_path):
+        index_path = os.path.join(BASE_DIR, 'security-dashboard.html')
+    if os.path.exists(index_path):
+        with open(index_path, 'r', encoding='utf-8') as f:
+            return f.read(), 200, {'Content-Type': 'text/html; charset=utf-8'}
+    return "Cyber Sentinel SOC Dashboard loading...", 200, {'Content-Type': 'text/plain'}
+
 @app.route('/')
 @app.route('/index.html')
 @app.route('/security-dashboard.html')
 @app.route('/security-dashboard')
+@app.route('/Court-SOC')
+@app.route('/Court-SOC/')
+@app.route('/Court-SOC/index.html')
 def serve_soc_dashboard():
-    return send_from_directory(BASE_DIR, 'index.html')
+    return get_soc_html()
 
 @app.route('/api/health', methods=['GET'])
 def soc_health():
@@ -633,6 +645,20 @@ def manage_settings():
         return jsonify({"status": status_val}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/<path:subpath>')
+def catch_all_fallback(subpath):
+    if subpath.startswith('api/'):
+        return jsonify({"error": f"API route not found: /{subpath}"}), 404
+    file_path = os.path.join(BASE_DIR, subpath)
+    if os.path.isfile(file_path):
+        return send_from_directory(BASE_DIR, subpath)
+    clean_subpath = subpath.replace('Court-SOC/', '').replace('Court-SOC', '')
+    if clean_subpath:
+        clean_file = os.path.join(BASE_DIR, clean_subpath)
+        if os.path.isfile(clean_file):
+            return send_from_directory(BASE_DIR, clean_subpath)
+    return get_soc_html()
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8082))
