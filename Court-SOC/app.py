@@ -21,8 +21,7 @@ IST = timezone(timedelta(hours=5, minutes=30))
 def get_now_ist():
     return datetime.now(IST)
 
-# Main Server (Project A) URL to monitor
-MAIN_SERVER_URL = os.environ.get("MAIN_SERVER_URL", "https://jsmchambers.in").rstrip('/')
+MAIN_SERVER_URL = os.environ.get("MAIN_SERVER_URL", "https://jsm-chamber-cuttack-odisha-30.vercel.app").rstrip('/')
 
 # Database Connections
 MONGO_URI = os.environ.get("MONGO_URI") or os.environ.get("MONGODB_URI")
@@ -30,8 +29,8 @@ DB_NAME = os.environ.get("DB_NAME", "jsmchambers_db")
 
 TURSO_DATABASE_URL = os.environ.get("TURSO_DATABASE_URL", "")
 TURSO_AUTH_TOKEN = os.environ.get("TURSO_AUTH_TOKEN", "")
-TURSO_CONTENT_DATABASE_URL = os.environ.get("TURSO_CONTENT_DATABASE_URL", "")
-TURSO_CONTENT_AUTH_TOKEN = os.environ.get("TURSO_CONTENT_AUTH_TOKEN", "")
+TURSO_CONTENT_DATABASE_URL = os.environ.get("TURSO_CONTENT_DATABASE_URL") or os.environ.get("TURSO2_DATABASE_URL", "")
+TURSO_CONTENT_AUTH_TOKEN = os.environ.get("TURSO_CONTENT_AUTH_TOKEN") or os.environ.get("TURSO2_AUTH_TOKEN", "")
 
 # MongoDB Setup
 client = None
@@ -156,6 +155,7 @@ def log_security_event(event_type, severity="info", details="", ip="127.0.0.1", 
 @app.route('/')
 @app.route('/index.html')
 @app.route('/security-dashboard.html')
+@app.route('/security-dashboard')
 def serve_soc_dashboard():
     return send_from_directory('.', 'index.html')
 

@@ -32,7 +32,7 @@ git push -u origin main
 2. Click **"Add New..." ➔ "Project"**.
 3. Import the **`court-soc`** GitHub repository.
 4. Under **Environment Variables**, add:
-   - `MAIN_SERVER_URL` (e.g. `https://yourchamber.com`)
+   - `MAIN_SERVER_URL` = `https://jsm-chamber-cuttack-odisha-30.vercel.app`
    - `MONGO_URI`
    - `TURSO_DATABASE_URL`
    - `TURSO_AUTH_TOKEN`
