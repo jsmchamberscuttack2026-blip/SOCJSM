@@ -690,11 +690,11 @@
             </a>
 
             <div class="nav-category">Chamber Systems</div>
-            <a href="https://jsm-chamber-cuttack-odisha-30.vercel.app/admin-dashboard.html" class="nav-link-soc" target="_blank" rel="noopener">
+            <a href="admin-dashboard.html" class="nav-link-soc" target="_blank">
                 <span class="nav-icon">⚖️</span>
                 <span>Admin Dashboard</span>
             </a>
-            <a href="https://jsm-chamber-cuttack-odisha-30.vercel.app/" class="nav-link-soc" target="_blank" rel="noopener">
+            <a href="index.html" class="nav-link-soc" target="_blank">
                 <span class="nav-icon">🌐</span>
                 <span>Public Website</span>
             </a>
@@ -727,11 +727,6 @@
             </div>
 
             <div class="header-actions">
-                <!-- Server A (Main Operations) Health Status Pill -->
-                <div id="server-a-status-pill" class="status-pill-btn" style="background: rgba(16, 185, 129, 0.15); border: 1px solid #10b981; color: #6ee7b7; padding: 6px 14px; border-radius: 999px; font-size: 0.82rem; font-weight: 700; display: flex; align-items: center; gap: 6px; cursor: pointer;" onclick="checkServerAStatus()" title="Live Heartbeat of Main Chamber Operations Server A (Click to Ping)">
-                    🟢 Server A: <strong>ONLINE</strong>
-                </div>
-
                 <!-- Master Public Website Status Pill in Top Header -->
                 <div id="top-status-pill" class="status-pill-btn status-pill-live" onclick="toggleWebsiteStatusQuick()" title="Click to instantly toggle Public Website ON / OFF">
                     <span id="top-status-dot">🟢</span>
@@ -750,31 +745,6 @@
 
         <!-- Dynamic Content Body -->
         <div class="soc-content">
-
-            <!-- LIVE SERVER A CRASH DETECTION BANNER -->
-            <div id="server-a-crash-banner" style="display: none; background: linear-gradient(90deg, rgba(239, 68, 68, 0.25), rgba(185, 28, 28, 0.45)); border: 2px solid #ef4444; border-radius: 12px; padding: 18px 22px; margin-bottom: 24px; box-shadow: 0 0 25px rgba(239, 68, 68, 0.35);">
-                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
-                    <div style="display: flex; align-items: center; gap: 14px;">
-                        <span style="font-size: 2.2rem;">🚨</span>
-                        <div>
-                            <h3 style="color: #ffffff; font-weight: 900; font-size: 1.15rem; margin: 0; letter-spacing: 0.5px;">
-                                CRITICAL ALERT: MAIN OPERATIONS SERVER IS DOWN / CRASHED!
-                            </h3>
-                            <p id="server-a-crash-details" style="color: #fca5a5; font-size: 0.86rem; margin: 4px 0 0 0;">
-                                Automated SOC probe detected that Server A is unresponsive or returning connection failures.
-                            </p>
-                        </div>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span id="server-a-crash-timestamp" style="font-family: monospace; font-size: 0.82rem; color: #fee2e2; background: rgba(0,0,0,0.5); padding: 7px 14px; border-radius: 6px; border: 1px solid rgba(239, 68, 68, 0.4);">
-                            Outage Active
-                        </span>
-                        <button onclick="checkServerAStatus()" class="btn-soc" style="background: #ef4444; color: #ffffff; padding: 8px 16px; font-weight: 700; border: none; border-radius: 6px; cursor: pointer;">
-                            🔄 Retry Ping Server A
-                        </button>
-                    </div>
-                </div>
-            </div>
 
             <!-- MASTER CYBER LOCKDOWN & REPAIR CARD -->
             <div class="lockdown-master-card">
@@ -2777,55 +2747,9 @@
             window.location.href = 'admin-login.html';
         }
 
-        async function checkServerAStatus() {
-            const banner = document.getElementById('server-a-crash-banner');
-            const pill = document.getElementById('server-a-status-pill');
-            const details = document.getElementById('server-a-crash-details');
-            const ts = document.getElementById('server-a-crash-timestamp');
-
-            try {
-                const res = await fetch('/api/security/server-a-status', { cache: 'no-store' });
-                const data = await res.json();
-
-                if (data.crashed || data.server_a_status === 'CRASHED' || data.server_a_status === 'DEGRADED') {
-                    if (banner) banner.style.display = 'block';
-                    if (details) details.innerText = data.message || 'Main Chamber Operations Server A is offline or unreachable.';
-                    if (ts) ts.innerText = `Outage Detected: ${data.timestamp_ist || 'Active'}`;
-                    if (pill) {
-                        pill.innerHTML = `🚨 Server A: <strong>CRASHED</strong>`;
-                        pill.style.background = 'rgba(239, 68, 68, 0.25)';
-                        pill.style.borderColor = '#ef4444';
-                        pill.style.color = '#fca5a5';
-                    }
-                } else {
-                    if (banner) banner.style.display = 'none';
-                    if (pill) {
-                        pill.innerHTML = `🟢 Server A: <strong>ONLINE</strong> (${data.latency_ms || 24}ms)`;
-                        pill.style.background = 'rgba(16, 185, 129, 0.15)';
-                        pill.style.borderColor = '#10b981';
-                        pill.style.color = '#6ee7b7';
-                    }
-                }
-            } catch (err) {
-                console.error("Failed to check Server A status:", err);
-                if (banner) banner.style.display = 'block';
-                if (pill) {
-                    pill.innerHTML = `🚨 Server A: <strong>OFFLINE</strong>`;
-                    pill.style.background = 'rgba(239, 68, 68, 0.25)';
-                    pill.style.borderColor = '#ef4444';
-                    pill.style.color = '#fca5a5';
-                }
-            }
-        }
-
         // Initialize on load
         document.addEventListener('DOMContentLoaded', () => {
             loadSecurityOverview();
-            checkServerAStatus();
-
-            // Heartbeat check for Server A every 15 seconds
-            setInterval(checkServerAStatus, 15000);
-
             // Polling interval every 30 seconds for live telemetry
             setInterval(() => {
                 if (currentActiveSection === 'overview') loadSecurityOverview();

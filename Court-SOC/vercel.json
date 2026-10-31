@@ -1,19 +1,93 @@
 {
     "version": 2,
+    "cleanUrls": true,
     "builds": [
         {
             "src": "app.py",
             "use": "@vercel/python"
+        },
+        {
+            "src": "css/**",
+            "use": "@vercel/static"
+        },
+        {
+            "src": "js/**",
+            "use": "@vercel/static"
+        },
+        {
+            "src": "assets/**",
+            "use": "@vercel/static"
+        },
+        {
+            "src": "*.html",
+            "use": "@vercel/static"
+        },
+        {
+            "src": "*.txt",
+            "use": "@vercel/static"
+        },
+        {
+            "src": "*.xml",
+            "use": "@vercel/static"
+        },
+        {
+            "src": "*.jpg",
+            "use": "@vercel/static"
+        },
+        {
+            "src": "*.png",
+            "use": "@vercel/static"
         }
     ],
     "routes": [
         {
-            "src": "/(vercel\\.json|requirements\\.txt|\\.env.*|\\.git.*)",
+            "src": "/(app\\.py|vercel\\.json|requirements\\.txt|\\.env.*|\\.git.*|.*\\.md|.*\\.log)",
             "status": 404
         },
         {
-            "src": "/(.*)",
+            "src": "/(members|members\\.html)",
+            "status": 301,
+            "headers": { "Location": "/" }
+        },
+        {
+            "src": "/api/(.*)",
             "dest": "app.py"
+        },
+        {
+            "src": "/admin-login",
+            "dest": "/admin-login.html"
+        },
+        {
+            "src": "/admin-dashboard",
+            "dest": "/admin-dashboard.html"
+        },
+        {
+            "src": "/client-login",
+            "dest": "/client-login.html"
+        },
+        {
+            "src": "/client-dashboard",
+            "dest": "/client-dashboard.html"
+        },
+        {
+            "src": "/staff-login",
+            "dest": "/staff-login.html"
+        },
+        {
+            "src": "/staff-dashboard",
+            "dest": "/staff-dashboard.html"
+        },
+        {
+            "src": "/security-dashboard",
+            "dest": "/security-dashboard.html"
+        },
+        {
+            "src": "/Court-SOC/?",
+            "dest": "/Court-SOC/index.html"
+        },
+        {
+            "src": "/(.*)",
+            "dest": "/$1"
         }
     ]
 }
