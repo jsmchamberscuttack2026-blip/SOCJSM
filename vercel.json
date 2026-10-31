@@ -4,52 +4,16 @@
         {
             "src": "app.py",
             "use": "@vercel/python"
-        },
-        {
-            "src": "*.html",
-            "use": "@vercel/static"
-        },
-        {
-            "src": "css/**",
-            "use": "@vercel/static"
-        },
-        {
-            "src": "js/**",
-            "use": "@vercel/static"
-        },
-        {
-            "src": "*.jpg",
-            "use": "@vercel/static"
         }
     ],
     "routes": [
         {
-            "src": "/(app\\.py|vercel\\.json|requirements\\.txt|\\.env.*|\\.git.*)",
+            "src": "/(vercel\\.json|requirements\\.txt|\\.env.*|\\.git.*)",
             "status": 404
         },
         {
-            "src": "/api/(.*)",
-            "dest": "app.py"
-        },
-        {
-            "src": "/",
-            "dest": "/index.html"
-        },
-        {
-            "src": "/index.html",
-            "dest": "/index.html"
-        },
-        {
-            "src": "/security-dashboard.html",
-            "dest": "/security-dashboard.html"
-        },
-        {
-            "src": "/security-dashboard",
-            "dest": "/security-dashboard.html"
-        },
-        {
             "src": "/(.*)",
-            "dest": "/$1"
+            "dest": "app.py"
         }
     ]
 }

@@ -15,7 +15,8 @@ load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 
-app = Flask(__name__, static_folder='.', static_url_path='')
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+app = Flask(__name__, static_folder=BASE_DIR, static_url_path='')
 
 IST = timezone(timedelta(hours=5, minutes=30))
 def get_now_ist():
@@ -157,7 +158,7 @@ def log_security_event(event_type, severity="info", details="", ip="127.0.0.1", 
 @app.route('/security-dashboard.html')
 @app.route('/security-dashboard')
 def serve_soc_dashboard():
-    return send_from_directory('.', 'index.html')
+    return send_from_directory(BASE_DIR, 'index.html')
 
 @app.route('/api/health', methods=['GET'])
 def soc_health():
