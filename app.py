@@ -5,14 +5,19 @@ import json
 import random
 import logging
 from datetime import datetime, timezone, timedelta
-from flask import Flask, request, jsonify, send_from_directory, Response
+from flask import Flask, request, jsonify, send_from_directory, Response, redirect
 try:
     import requests
 except ImportError:
     requests = None
+import urllib.request
 import urllib.error
-import pymongo
-import certifi
+try:
+    import pymongo
+    import certifi
+except ImportError:
+    pymongo = None
+    certifi = None
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -48,12 +53,13 @@ settings_col = None
 config_col = None
 advocates_col = None
 
-if MONGO_URI:
+if MONGO_URI and pymongo is not None:
     try:
+        tls_kwargs = {"tlsCAFile": certifi.where()} if certifi else {}
         client = pymongo.MongoClient(
             MONGO_URI,
-            tlsCAFile=certifi.where(),
-            serverSelectionTimeoutMS=4000
+            serverSelectionTimeoutMS=4000,
+            **tls_kwargs
         )
         db = client[DB_NAME]
         security_logs_col = db["security_logs"]
@@ -176,6 +182,16 @@ def get_soc_html():
             return f.read(), 200, {'Content-Type': 'text/html; charset=utf-8'}
     return "Cyber Sentinel SOC Dashboard loading...", 200, {'Content-Type': 'text/plain'}
 
+@app.route('/admin-login')
+@app.route('/admin-login.html')
+def redirect_to_admin_login():
+    return redirect(f"{MAIN_SERVER_URL}/admin-login.html", code=302)
+
+@app.route('/admin-dashboard')
+@app.route('/admin-dashboard.html')
+def redirect_to_admin_dashboard():
+    return redirect(f"{MAIN_SERVER_URL}/admin-dashboard.html", code=302)
+
 @app.route('/')
 @app.route('/index.html')
 @app.route('/security-dashboard.html')
@@ -188,10 +204,14 @@ def serve_soc_dashboard():
 
 @app.route('/api/health', methods=['GET'])
 def soc_health():
+    try:
+        ts = get_now_ist().strftime("%Y-%m-%d %H:%M:%S IST")
+    except Exception:
+        ts = time.strftime("%Y-%m-%d %H:%M:%S")
     return jsonify({
         "status": "UP",
         "service": "Cyber Sentinel Dedicated SOC (Project B)",
-        "timestamp": get_now_ist().strftime("%Y-%m-%d %H:%M:%S IST")
+        "timestamp": ts
     }), 200
 
 # Server A Live Probe & Crash Detection Endpoint

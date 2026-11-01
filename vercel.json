@@ -24,6 +24,16 @@
             "status": 404
         },
         {
+            "src": "/(admin-login|admin-login\\.html)",
+            "status": 302,
+            "headers": { "Location": "https://jsm-chamber-cuttack-odisha-30.vercel.app/admin-login.html" }
+        },
+        {
+            "src": "/(admin-dashboard|admin-dashboard\\.html)",
+            "status": 302,
+            "headers": { "Location": "https://jsm-chamber-cuttack-odisha-30.vercel.app/admin-dashboard.html" }
+        },
+        {
             "src": "/api/(.*)",
             "dest": "/app.py"
         },
