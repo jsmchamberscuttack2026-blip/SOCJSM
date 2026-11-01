@@ -37,20 +37,20 @@ def get_now_ist():
 
 MAIN_SERVER_URL = os.environ.get("MAIN_SERVER_URL", "https://jsm-chamber-cuttack-odisha-30.vercel.app").rstrip('/')
 
-# SMTP Configuration for SOC Officer OTP 2FA
+# SMTP Configuration for SOC Officer OTP 2FA (with resilient production fallbacks)
 SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", 587))
 SMTP_USER = os.environ.get("SMTP_USER", "jsmchamberscuttack2026@gmail.com")
-SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "tqqmpczexenshygo")
 
-# Database Connections
-MONGO_URI = os.environ.get("MONGO_URI") or os.environ.get("MONGODB_URI")
+# Database Connections (with resilient production fallbacks)
+MONGO_URI = os.environ.get("MONGO_URI") or os.environ.get("MONGODB_URI") or "mongodb+srv://arnnavpanda2006_db_user:w52rYxHisbslJ4hp@cluster0.fxakspf.mongodb.net/?appName=Cluster0"
 DB_NAME = os.environ.get("DB_NAME", "jsmchambers_db")
 
-TURSO_DATABASE_URL = os.environ.get("TURSO_DATABASE_URL", "")
-TURSO_AUTH_TOKEN = os.environ.get("TURSO_AUTH_TOKEN", "")
-TURSO_CONTENT_DATABASE_URL = os.environ.get("TURSO_CONTENT_DATABASE_URL") or os.environ.get("TURSO2_DATABASE_URL", "")
-TURSO_CONTENT_AUTH_TOKEN = os.environ.get("TURSO_CONTENT_AUTH_TOKEN") or os.environ.get("TURSO2_AUTH_TOKEN", "")
+TURSO_DATABASE_URL = os.environ.get("TURSO_DATABASE_URL") or "libsql://jsm-chamber-jsmcuttack.aws-ap-south-1.turso.io"
+TURSO_AUTH_TOKEN = os.environ.get("TURSO_AUTH_TOKEN") or "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3OTMzMzQ4NTcsImlkIjoiMDFhMThiMTAtZmUwMS03ZTViLWI1YjItNGY4YjljMGYxNTIzIiwia2lkIjoiY2E4SWNBcm5MRFAwZ0gtN3Izd2hjVnFyS2ZmLTVBUGdrRERhWDdKcVU4YyIsInJpZCI6IjAxYTI4ODcwLWM3MmEtNDRkMC1hMDdlLWJhOGRmZDY2YjE2NSJ9.YjookYrYO2u-3vGkilEQoFkzzqSEbVMs3cS2EurNm7PY9f00j5p2aX8N7MaP8uyUhDnPXWAYXMXKLHnCDpwGBA"
+TURSO_CONTENT_DATABASE_URL = os.environ.get("TURSO_CONTENT_DATABASE_URL") or os.environ.get("TURSO2_DATABASE_URL") or "libsql://jsm2-jsm2.aws-ap-south-1.turso.io"
+TURSO_CONTENT_AUTH_TOKEN = os.environ.get("TURSO_CONTENT_AUTH_TOKEN") or os.environ.get("TURSO2_AUTH_TOKEN") or "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3OTMzNDc4NzMsImlkIjoiMDFhMThiZGMtOTIwMS03M2E2LTk3MTctZDBjNTM2YTczNjNmIiwia2lkIjoiRlZDZmNQVklIT1k5bmNqbzFpbDRQTE9YMEY3QVFlcTJpcUFtQWc1UGNhcyIsInJpZCI6ImM1ODg5NjI5LWFlYjYtNDQwOS04MzQ0LTZhMjNlODUwZWExYiJ9.6gxUyEcJ-hujJkI72dGNIL1BI6ELzlRSk8n5lBU5h7i9c2QN9DeQRrsIiI8sR36TxBXJjQVJ1QAy2vEcUg6-DA"
 
 # MongoDB Setup
 client = None
@@ -252,16 +252,25 @@ def mask_email(email):
     return f"{masked_user}@{domain}"
 
 def send_soc_otp_email(target_email, otp, expiry_str):
-    if not SMTP_PASSWORD or not SMTP_USER:
-        logging.warning(f"SMTP credentials not present in environment; OTP for {target_email} is: {otp}")
-        return False, "SMTP password not set"
+    smtp_user = os.environ.get("SMTP_USER") or "jsmchamberscuttack2026@gmail.com"
+    smtp_password = os.environ.get("SMTP_PASSWORD") or "tqqmpczexenshygo"
+    smtp_host = os.environ.get("SMTP_HOST") or "smtp.gmail.com"
+    smtp_port = int(os.environ.get("SMTP_PORT") or 587)
+
+    if not smtp_password or not smtp_user:
+        logging.warning(f"SMTP credentials missing; OTP for {target_email} is: {otp}")
+        return False, "SMTP credentials missing"
 
     msg = MIMEMultipart('alternative')
     msg['Date'] = formatdate(localtime=True)
     msg['Message-ID'] = make_msgid()
-    msg['From'] = f"JSM Cyber Sentinel SOC <{SMTP_USER}>"
+    msg['From'] = f"JSM Cyber Sentinel SOC <{smtp_user}>"
     msg['To'] = target_email
     msg['Subject'] = f"🛡️ Cyber Sentinel SOC - Security Officer Login OTP: {otp}"
+
+    # Plain-text alternative
+    plain_text = f"CYBER SENTINEL SOC - 2FA Security Code\n\nYour single-use login OTP is: {otp}\nValid for 5 minutes (expires at {expiry_str} IST).\n\nJSM Chambers Dedicated SOC Server B"
+    msg.attach(MIMEText(plain_text, 'plain', 'utf-8'))
 
     html = f"""
     <!DOCTYPE html>
@@ -294,18 +303,31 @@ def send_soc_otp_email(target_email, otp, expiry_str):
     """
     msg.attach(MIMEText(html, 'html', 'utf-8'))
 
+    # Attempt 1: Port 587 STARTTLS (5s timeout)
     try:
-        server = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=8)
+        server = smtplib.SMTP(smtp_host, smtp_port, timeout=5)
         server.ehlo()
         server.starttls()
         server.ehlo()
-        server.login(SMTP_USER, SMTP_PASSWORD)
-        server.sendmail(SMTP_USER, [target_email], msg.as_string())
+        server.login(smtp_user, smtp_password)
+        server.sendmail(smtp_user, [target_email], msg.as_string())
         server.quit()
+        logging.info(f"SOC OTP email successfully delivered via STARTTLS to {target_email}")
         return True, "Email sent successfully"
-    except Exception as e:
-        logging.error(f"Failed to send SOC OTP email: {e}")
-        return False, str(e)
+    except Exception as e1:
+        logging.warning(f"STARTTLS dispatch failed: {e1}. Retrying via SSL 465...")
+
+    # Attempt 2: Port 465 SSL Fallback (5s timeout)
+    try:
+        server_ssl = smtplib.SMTP_SSL(smtp_host, 465, timeout=5)
+        server_ssl.login(smtp_user, smtp_password)
+        server_ssl.sendmail(smtp_user, [target_email], msg.as_string())
+        server_ssl.quit()
+        logging.info(f"SOC OTP email successfully delivered via SSL 465 to {target_email}")
+        return True, "Email sent successfully via SSL fallback"
+    except Exception as e2:
+        logging.error(f"Both SMTP dispatch attempts failed: {e2}")
+        return False, f"SMTP dispatch failed: {e2}"
 
 # =========================================================
 #  SECURITY OFFICER OTP AUTHENTICATION ENDPOINTS
@@ -372,6 +394,12 @@ def send_soc_otp():
         # 3. Send email via SMTP
         sent, err = send_soc_otp_email(target_email, otp, expiry_str)
 
+        if not sent:
+            log_security_event("soc_otp_dispatch_failed", "critical", f"Failed to send 2FA OTP to {target_email}: {err}")
+            return jsonify({
+                "error": f"Failed to send OTP email to {mask_email(target_email)}: {err}. Please check SMTP configuration."
+            }), 502
+
         log_security_event("soc_otp_dispatched", "info", f"Security Officer credentials verified (ID: JSM). OTP dispatched to {mask_email(target_email)}.")
 
         return jsonify({
@@ -379,7 +407,7 @@ def send_soc_otp():
             "target_email": target_email,
             "target_email_masked": mask_email(target_email),
             "expires_in_seconds": 300,
-            "email_sent": sent,
+            "email_sent": True,
             "message": f"Credentials verified successfully! A 6-digit 2FA security code has been dispatched to {mask_email(target_email)}."
         }), 200
     except Exception as e:
@@ -414,6 +442,9 @@ def resend_soc_otp():
 
         _active_soc_otps[target_email] = {"otp": otp, "expires_at": expires_at}
         sent, err = send_soc_otp_email(target_email, otp, expiry_str)
+
+        if not sent:
+            return jsonify({"error": f"Failed to dispatch 2FA email: {err}"}), 502
 
         return jsonify({
             "success": True,
