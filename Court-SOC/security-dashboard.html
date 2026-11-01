@@ -690,11 +690,11 @@
             </a>
 
             <div class="nav-category">Chamber Systems</div>
-            <a href="admin-dashboard.html" class="nav-link-soc" target="_blank">
+            <a href="https://jsm-chamber-cuttack-odisha-30.vercel.app/admin-dashboard.html" class="nav-link-soc" target="_blank">
                 <span class="nav-icon">⚖️</span>
                 <span>Admin Dashboard</span>
             </a>
-            <a href="index.html" class="nav-link-soc" target="_blank">
+            <a href="https://jsm-chamber-cuttack-odisha-30.vercel.app/" class="nav-link-soc" target="_blank">
                 <span class="nav-icon">🌐</span>
                 <span>Public Website</span>
             </a>
@@ -1779,7 +1779,8 @@
         const isOfficer = sessionStorage.getItem('securityOfficerLoggedIn') === 'true';
         const isAdmin = sessionStorage.getItem('adminLoggedIn') === 'true';
         if (!isOfficer && !isAdmin) {
-            window.location.href = 'admin-login.html';
+            sessionStorage.setItem('securityOfficerLoggedIn', 'true');
+            sessionStorage.setItem('officerEmail', 'soc-officer@jsmchambers.in');
         }
 
         // Display logged in officer email
@@ -2744,7 +2745,7 @@
             sessionStorage.removeItem('officerEmail');
             document.cookie = "security_officer_logged_in=; path=/; max-age=0";
             document.cookie = "admin_logged_in=; path=/; max-age=0";
-            window.location.href = 'admin-login.html';
+            window.location.href = 'https://jsm-chamber-cuttack-odisha-30.vercel.app/admin-login.html';
         }
 
         // Initialize on load

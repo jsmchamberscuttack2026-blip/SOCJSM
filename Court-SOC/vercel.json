@@ -14,10 +14,6 @@
             "use": "@vercel/static"
         },
         {
-            "src": "css/*.css",
-            "use": "@vercel/static"
-        },
-        {
             "src": "*.jpg",
             "use": "@vercel/static"
         }
@@ -29,15 +25,30 @@
         },
         {
             "src": "/api/(.*)",
-            "dest": "app.py"
+            "dest": "/app.py"
+        },
+        {
+            "src": "/",
+            "dest": "/index.html"
+        },
+        {
+            "handle": "filesystem"
         },
         {
             "src": "/security-dashboard",
             "dest": "/index.html"
         },
         {
+            "src": "/admin-login",
+            "dest": "/admin-login.html"
+        },
+        {
+            "src": "/admin-dashboard",
+            "dest": "/admin-dashboard.html"
+        },
+        {
             "src": "/(.*)",
-            "dest": "/$1"
+            "dest": "/index.html"
         }
     ]
 }
