@@ -32,12 +32,19 @@
             "dest": "app.py"
         },
         {
+            "src": "/",
+            "dest": "/index.html"
+        },
+        {
+            "handle": "filesystem"
+        },
+        {
             "src": "/security-dashboard",
             "dest": "/index.html"
         },
         {
             "src": "/(.*)",
-            "dest": "/$1"
+            "dest": "/index.html"
         }
     ]
 }
