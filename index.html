@@ -709,36 +709,59 @@
             font-size: 0.74rem;
             color: #64748b;
         }
-        .sparkline-container {
-            display: flex;
-            align-items: flex-end;
-            gap: 5px;
-            height: 48px;
-            background: rgba(0,0,0,0.3);
-            border-radius: 8px;
-            padding: 6px 10px;
-            border: 1px solid rgba(255,255,255,0.06);
-        }
-        .sparkline-bar {
-            flex: 1;
-            min-width: 8px;
-            border-radius: 3px 3px 0 0;
-            transition: height 0.3s ease, background-color 0.3s;
+        .timeline-graph-wrapper {
             position: relative;
+            width: 100%;
+            height: 240px;
+            background: linear-gradient(180deg, rgba(8, 18, 33, 0.85) 0%, rgba(4, 9, 18, 0.95) 100%);
+            border-radius: 12px;
+            border: 1px solid rgba(0, 242, 254, 0.2);
+            box-shadow: inset 0 0 35px rgba(0, 0, 0, 0.8), 0 8px 24px rgba(0, 0, 0, 0.4);
+            overflow: visible;
         }
-        .sparkline-bar:hover::after {
-            content: attr(data-tip);
+        .graph-tooltip {
             position: absolute;
-            bottom: 100%;
+            display: none;
+            pointer-events: none;
+            z-index: 100;
+            background: rgba(6, 14, 26, 0.96);
+            border: 1.5px solid #00f2fe;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.85), 0 0 15px rgba(0, 242, 254, 0.35);
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 0.74rem;
+            color: #f8fafc;
+            font-family: 'JetBrains Mono', monospace;
+            white-space: nowrap;
+            transform: translate(-50%, -125%);
+            transition: opacity 0.1s ease, transform 0.1s ease;
+        }
+        .graph-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
             left: 50%;
             transform: translateX(-50%);
-            background: #000;
-            color: #fff;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 10px;
-            white-space: nowrap;
-            z-index: 10;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #00f2fe transparent transparent transparent;
+        }
+        .graph-point {
+            cursor: pointer;
+            transition: r 0.2s ease, filter 0.2s ease;
+        }
+        .graph-point:hover {
+            r: 7px !important;
+            filter: drop-shadow(0 0 8px currentColor) !important;
+        }
+        @keyframes livePulseRingAnim {
+            0% { r: 5px; opacity: 0.9; }
+            50% { r: 12px; opacity: 0.4; }
+            100% { r: 16px; opacity: 0; }
+        }
+        .live-pulse-ring {
+            animation: livePulseRingAnim 1.6s infinite ease-out;
+            pointer-events: none;
         }
         .pulse-indicator {
             width: 14px;
@@ -1127,14 +1150,64 @@
                     </div>
                 </div>
 
-                <!-- Latency Sparkline Bar Chart -->
-                <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.06);">
-                    <div style="display: flex; justify-content: space-between; font-size: 0.76rem; color: #94a3b8; margin-bottom: 8px;">
-                        <span>📊 Live Ping Latency History (Last 15 Probes):</span>
-                        <span id="server-a-avg-latency" style="color: #D4AF37; font-weight: 700;">Avg: -- ms</span>
+                <!-- Server A Live Timeline Graph (X-Axis: Time, Y-Axis: Latency ms / Status) -->
+                <div class="server-a-timeline-section" style="margin-top: 18px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.08);">
+                    <!-- Header with Title, Status Legend, and Stats -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 1.1rem;">📈</span>
+                                <h4 style="margin: 0; font-size: 0.95rem; color: #f8fafc; font-weight: 700; letter-spacing: 0.5px;">
+                                    Live Server A Latency &amp; Status Timeline
+                                </h4>
+                                <span id="server-a-graph-live-badge" class="badge-soc badge-pass" style="font-size: 0.68rem; padding: 2px 8px; border-radius: 999px;">
+                                    LIVE PULSE
+                                </span>
+                            </div>
+                            <div style="font-size: 0.74rem; color: #94a3b8; margin-top: 3px;">
+                                Chronological probe timeline (5s Heartbeat) · X-Axis: Time (IST) · Y-Axis: Latency (ms)
+                            </div>
+                        </div>
+
+                        <!-- Legend & Realtime Telemetry Stats -->
+                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 0.75rem;">
+                            <!-- Legend -->
+                            <div style="display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.35); padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.07);">
+                                <span style="display: inline-flex; align-items: center; gap: 4px; color: #10b981;">
+                                    <span style="width: 7px; height: 7px; border-radius: 50%; background: #10b981; display: inline-block;"></span> &lt;800ms Online
+                                </span>
+                                <span style="display: inline-flex; align-items: center; gap: 4px; color: #f59e0b;">
+                                    <span style="width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; display: inline-block;"></span> 800-2000ms Slow
+                                </span>
+                                <span style="display: inline-flex; align-items: center; gap: 4px; color: #ef4444;">
+                                    <span style="width: 7px; height: 7px; border-radius: 50%; background: #ef4444; display: inline-block;"></span> Down/Crash
+                                </span>
+                            </div>
+
+                            <!-- Live Telemetry Badges -->
+                            <div style="display: flex; gap: 6px; font-family: 'JetBrains Mono', monospace;">
+                                <span style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: #10b981; padding: 4px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 700;" id="timeline-stat-curr">
+                                    Current: -- ms
+                                </span>
+                                <span style="background: rgba(212, 175, 55, 0.12); border: 1px solid rgba(212, 175, 55, 0.3); color: #D4AF37; padding: 4px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 700;" id="timeline-stat-avg">
+                                    Avg: -- ms
+                                </span>
+                                <span style="background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.3); color: #38bdf8; padding: 4px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 600;" id="timeline-stat-minmax">
+                                    Min: -- | Max: --
+                                </span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="sparkline-container" id="server-a-sparkline">
-                        <div style="color: #64748b; font-size: 0.72rem; margin: auto;">Collecting initial latency pulses...</div>
+
+                    <!-- Graph Container with X and Y Axes -->
+                    <div class="timeline-graph-wrapper" id="server-a-graph-container">
+                        <div id="server-a-graph-tooltip" class="graph-tooltip"></div>
+                        <svg id="server-a-timeline-svg" viewBox="0 0 900 240" preserveAspectRatio="none" style="width: 100%; height: 100%; display: block;">
+                            <!-- Injected dynamically by renderServerATimelineGraph -->
+                        </svg>
+                        <div id="server-a-graph-empty" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 0.82rem; font-family: 'JetBrains Mono', monospace;">
+                            <span>⏳ Initializing live telemetry timeline...</span>
+                        </div>
                     </div>
                 </div>
 
@@ -3233,10 +3306,8 @@
                     }
                 }
 
-                // Render Sparkline
-                if (data.history && data.history.length > 0) {
-                    renderLatencySparkline(data.history);
-                }
+                // Render X & Y Axis Timeline Graph
+                renderServerATimelineGraph(data.history || [], data);
             } catch (e) {
                 console.error("Server A probe failed:", e);
             } finally {
@@ -3244,25 +3315,259 @@
             }
         }
 
-        function renderLatencySparkline(history) {
-            const container = document.getElementById('server-a-sparkline');
-            const avgEl = document.getElementById('server-a-avg-latency');
-            if (!container) return;
+        let serverAHistoryBuffer = [];
 
-            const maxLat = Math.max(1000, ...history.map(h => h.latency || 0));
-            const total = history.reduce((sum, h) => sum + (h.latency || 0), 0);
-            const avg = Math.round(total / (history.length || 1));
-            if (avgEl) avgEl.innerText = `Avg: ${avg} ms`;
+        function renderServerATimelineGraph(history, currentData) {
+            const svg = document.getElementById('server-a-timeline-svg');
+            const emptyNotice = document.getElementById('server-a-graph-empty');
+            const statCurr = document.getElementById('timeline-stat-curr');
+            const statAvg = document.getElementById('timeline-stat-avg');
+            const statMinMax = document.getElementById('timeline-stat-minmax');
+            const liveBadge = document.getElementById('server-a-graph-live-badge');
 
-            container.innerHTML = history.map(h => {
-                const lat = h.latency || 0;
-                const pct = Math.max(10, Math.min(100, Math.round((lat / maxLat) * 100)));
-                let barColor = '#10b981';
-                if (h.status === 'SLOW') barColor = '#f59e0b';
-                if (h.status === 'CRASHED' || lat === 0) barColor = '#ef4444';
+            if (!svg) return;
 
-                return `<div class="sparkline-bar" style="height: ${pct}%; background-color: ${barColor};" data-tip="${h.time}: ${lat}ms (${h.status})"></div>`;
-            }).join('');
+            // Update buffer with incoming history or current point
+            if (Array.isArray(history) && history.length > 0) {
+                serverAHistoryBuffer = [...history];
+            } else if (currentData && currentData.latency_ms !== undefined) {
+                const nowTime = new Date().toLocaleTimeString('en-US', { hour12: false });
+                serverAHistoryBuffer.push({
+                    time: nowTime,
+                    latency: currentData.latency_ms,
+                    status: currentData.server_a_status || 'ONLINE',
+                    code: currentData.status_code || 200
+                });
+                if (serverAHistoryBuffer.length > 30) serverAHistoryBuffer.shift();
+            }
+
+            const points = serverAHistoryBuffer;
+            if (points.length === 0) {
+                if (emptyNotice) emptyNotice.style.display = 'flex';
+                return;
+            }
+            if (emptyNotice) emptyNotice.style.display = 'none';
+
+            // Metrics calculation
+            const latencies = points.map(p => Number(p.latency) || 0);
+            const validLatencies = latencies.filter(l => l > 0);
+            const currentPoint = points[points.length - 1];
+            const currentLat = currentPoint.latency || 0;
+            const currentStatus = currentPoint.status || 'ONLINE';
+            const avgLat = validLatencies.length ? Math.round(validLatencies.reduce((a, b) => a + b, 0) / validLatencies.length) : 0;
+            const minLat = validLatencies.length ? Math.min(...validLatencies) : 0;
+            const maxRecordedLat = latencies.length ? Math.max(...latencies) : 0;
+
+            // Update header badges
+            if (statCurr) {
+                statCurr.innerText = `Current: ${currentLat} ms`;
+                statCurr.style.color = currentStatus === 'ONLINE' ? '#10b981' : (currentStatus === 'SLOW' ? '#f59e0b' : '#ef4444');
+            }
+            if (statAvg) statAvg.innerText = `Avg: ${avgLat} ms`;
+            if (statMinMax) statMinMax.innerText = `Min: ${minLat}ms | Max: ${Math.round(maxRecordedLat)}ms`;
+            if (liveBadge) {
+                liveBadge.className = currentStatus === 'ONLINE' ? 'badge-soc badge-pass' : (currentStatus === 'SLOW' ? 'badge-soc badge-warning' : 'badge-soc badge-critical');
+                liveBadge.innerText = currentStatus === 'ONLINE' ? '🟢 ONLINE' : (currentStatus === 'SLOW' ? '🟡 DEGRADED' : '🔴 CRASHED');
+            }
+
+            // Dimensions and layout
+            const svgW = 900;
+            const svgH = 240;
+            const padLeft = 65;
+            const padRight = 35;
+            const padTop = 28;
+            const padBottom = 42;
+            const plotW = svgW - padLeft - padRight;
+            const plotH = svgH - padTop - padBottom;
+
+            // Y Axis Scale (Dynamic round to nearest 200/500, minimum 1000)
+            const yMax = Math.max(1000, Math.ceil(maxRecordedLat / 200) * 200);
+
+            // Generate Y-axis grid ticks (4 intervals)
+            const yTicks = [0, Math.round(yMax * 0.33), Math.round(yMax * 0.66), yMax];
+            let yGridSvg = '';
+            yTicks.forEach(tickVal => {
+                const yPos = padTop + plotH - ((tickVal / yMax) * plotH);
+                yGridSvg += `
+                    <line x1="${padLeft}" y1="${yPos}" x2="${padLeft + plotW}" y2="${yPos}" stroke="rgba(255,255,255,0.08)" stroke-dasharray="3,3" />
+                    <text x="${padLeft - 10}" y="${yPos + 3.5}" fill="#94a3b8" font-size="10" font-family="'JetBrains Mono', monospace" text-anchor="end">${tickVal}ms</text>
+                `;
+            });
+
+            // 800ms Threshold Guideline
+            let thresholdSvg = '';
+            if (800 <= yMax) {
+                const y800 = padTop + plotH - ((800 / yMax) * plotH);
+                thresholdSvg = `
+                    <line x1="${padLeft}" y1="${y800}" x2="${padLeft + plotW}" y2="${y800}" stroke="rgba(245, 158, 11, 0.45)" stroke-dasharray="4,4" stroke-width="1.3" />
+                    <text x="${padLeft + plotW - 6}" y="${y800 - 4}" fill="#f59e0b" font-size="9" font-family="'JetBrains Mono', monospace" text-anchor="end">800ms Slow Threshold</text>
+                `;
+            }
+
+            // Plot coordinates for points
+            const coords = points.map((p, idx) => {
+                const x = points.length === 1 ? (padLeft + plotW / 2) : (padLeft + (idx / (points.length - 1)) * plotW);
+                const latClamped = Math.min(yMax, Math.max(0, p.latency || 0));
+                const y = padTop + plotH - ((latClamped / yMax) * plotH);
+                return { x, y, point: p, idx };
+            });
+
+            // Path Line & Area SVG
+            let linePathD = `M ${coords[0].x} ${coords[0].y}`;
+            coords.slice(1).forEach(c => {
+                linePathD += ` L ${c.x} ${c.y}`;
+            });
+
+            const areaPathD = `${linePathD} L ${coords[coords.length - 1].x} ${padTop + plotH} L ${coords[0].x} ${padTop + plotH} Z`;
+
+            // X-Axis Timeline Labels (Show evenly spaced timestamps)
+            let xGridSvg = '';
+            const step = points.length <= 6 ? 1 : (points.length <= 14 ? 2 : Math.ceil(points.length / 7));
+            coords.forEach((c, idx) => {
+                const isFirst = idx === 0;
+                const isLast = idx === coords.length - 1;
+                const isStep = idx % step === 0;
+                if (isFirst || isLast || isStep) {
+                    xGridSvg += `
+                        <line x1="${c.x}" y1="${padTop + plotH}" x2="${c.x}" y2="${padTop + plotH + 5}" stroke="rgba(255,255,255,0.3)" />
+                        <line x1="${c.x}" y1="${padTop}" x2="${c.x}" y2="${padTop + plotH}" stroke="rgba(255,255,255,0.04)" stroke-dasharray="2,2" />
+                        <text x="${c.x}" y="${padTop + plotH + 18}" fill="#94a3b8" font-size="9.5" font-family="'JetBrains Mono', monospace" text-anchor="middle">${c.point.time || ''}</text>
+                    `;
+                }
+            });
+
+            // SVG Points and Interactive Circles
+            let pointsSvg = '';
+            coords.forEach((c, idx) => {
+                const p = c.point;
+                const isLatest = idx === coords.length - 1;
+                let col = '#10b981'; // Online
+                if (p.status === 'SLOW') col = '#f59e0b';
+                if (p.status === 'CRASHED' || p.latency === 0) col = '#ef4444';
+
+                if (isLatest) {
+                    pointsSvg += `
+                        <circle cx="${c.x}" cy="${c.y}" r="8" fill="none" stroke="${col}" stroke-width="2" class="live-pulse-ring" />
+                        <circle cx="${c.x}" cy="${c.y}" r="4.5" fill="${col}" stroke="#ffffff" stroke-width="1.5" />
+                    `;
+                } else {
+                    pointsSvg += `
+                        <circle cx="${c.x}" cy="${c.y}" r="3.5" fill="${col}" stroke="#060e1a" stroke-width="1.5" class="graph-point" style="color: ${col};" />
+                    `;
+                }
+            });
+
+            // Transparent Hover Overlay Hitboxes for Tooltip
+            let hitboxesSvg = '';
+            const hitW = points.length > 1 ? (plotW / (points.length - 1)) : plotW;
+            coords.forEach(c => {
+                const p = c.point;
+                const hitX = c.x - hitW / 2;
+                hitboxesSvg += `
+                    <rect x="${hitX}" y="${padTop}" width="${hitW}" height="${plotH}" fill="transparent" style="cursor: pointer;"
+                          onmouseenter="showTimelineTooltip(event, '${p.time}', ${p.latency}, '${p.status}', ${p.code || 200})"
+                          onmousemove="moveTimelineTooltip(event)"
+                          onmouseleave="hideTimelineTooltip()" />
+                `;
+            });
+
+            // Determine stroke gradient based on current status
+            let lineStroke = '#00f2fe';
+            if (currentStatus === 'SLOW') lineStroke = '#f59e0b';
+            if (currentStatus === 'CRASHED') lineStroke = '#ef4444';
+
+            // Complete SVG Assembly
+            svg.innerHTML = `
+                <defs>
+                    <linearGradient id="serverAGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="${lineStroke}" stop-opacity="0.32" />
+                        <stop offset="70%" stop-color="${lineStroke}" stop-opacity="0.08" />
+                        <stop offset="100%" stop-color="${lineStroke}" stop-opacity="0.0" />
+                    </linearGradient>
+                    <filter id="glowFilter" x="-20%" y="-20%" width="140%" height="140%">
+                        <feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="${lineStroke}" flood-opacity="0.6"/>
+                    </filter>
+                </defs>
+
+                <!-- Y-Axis Grid & Labels -->
+                ${yGridSvg}
+
+                <!-- 800ms Threshold Line -->
+                ${thresholdSvg}
+
+                <!-- X and Y Main Axis Lines -->
+                <line x1="${padLeft}" y1="${padTop}" x2="${padLeft}" y2="${padTop + plotH}" stroke="rgba(255,255,255,0.25)" stroke-width="1.5" />
+                <line x1="${padLeft}" y1="${padTop + plotH}" x2="${padLeft + plotW}" y2="${padTop + plotH}" stroke="rgba(255,255,255,0.25)" stroke-width="1.5" />
+
+                <!-- Axis Titles -->
+                <text x="${padLeft}" y="${padTop - 12}" fill="#00f2fe" font-size="9.5" font-weight="700" font-family="'JetBrains Mono', monospace" letter-spacing="1">LATENCY (Y-AXIS · ms)</text>
+                <text x="${padLeft + plotW / 2}" y="${svgH - 6}" fill="#94a3b8" font-size="9" font-family="'JetBrains Mono', monospace" text-anchor="middle" letter-spacing="0.5">CHRONOLOGICAL TIMELINE (X-AXIS · IST)</text>
+
+                <!-- X-Axis Timeline Ticks & Timestamps -->
+                ${xGridSvg}
+
+                <!-- Filled Area Under Curve -->
+                <path d="${areaPathD}" fill="url(#serverAGradient)" />
+
+                <!-- Connecting Trend Line -->
+                <path d="${linePathD}" fill="none" stroke="${lineStroke}" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round" filter="url(#glowFilter)" />
+
+                <!-- Points Along the Timeline -->
+                ${pointsSvg}
+
+                <!-- Transparent Interactive Hover Hitboxes -->
+                ${hitboxesSvg}
+            `;
+        }
+
+        function showTimelineTooltip(evt, time, latency, status, code) {
+            const tooltip = document.getElementById('server-a-graph-tooltip');
+            const container = document.getElementById('server-a-graph-container');
+            if (!tooltip || !container) return;
+
+            let badgeHtml = status === 'ONLINE' ? '<span style="color:#10b981; font-weight:700;">🟢 ONLINE</span>' : (status === 'SLOW' ? '<span style="color:#f59e0b; font-weight:700;">🟡 SLOW</span>' : '<span style="color:#ef4444; font-weight:700;">🔴 CRASHED</span>');
+
+            tooltip.innerHTML = `
+                <div style="font-weight:700; color:#00f2fe; margin-bottom:4px; border-bottom:1px solid rgba(0,242,254,0.2); padding-bottom:3px;">
+                    ⚡ Probe Heartbeat at ${time} IST
+                </div>
+                <div style="display:flex; justify-content:space-between; gap:14px; margin-top:2px;">
+                    <span style="color:#94a3b8;">Latency:</span>
+                    <span style="color:#ffffff; font-weight:700;">${latency} ms</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; gap:14px; margin-top:2px;">
+                    <span style="color:#94a3b8;">HTTP Code:</span>
+                    <span style="color:#38bdf8;">${code ? code + ' OK' : '0 (No Response)'}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; gap:14px; margin-top:2px;">
+                    <span style="color:#94a3b8;">Status:</span>
+                    <span>${badgeHtml}</span>
+                </div>
+            `;
+            tooltip.style.display = 'block';
+            moveTimelineTooltip(evt);
+        }
+
+        function moveTimelineTooltip(evt) {
+            const tooltip = document.getElementById('server-a-graph-tooltip');
+            const container = document.getElementById('server-a-graph-container');
+            if (!tooltip || !container) return;
+
+            const rect = container.getBoundingClientRect();
+            let x = evt.clientX - rect.left;
+            let y = evt.clientY - rect.top;
+
+            // Constrain tooltip inside container
+            if (x < 110) x = 110;
+            if (x > rect.width - 110) x = rect.width - 110;
+
+            tooltip.style.left = `${x}px`;
+            tooltip.style.top = `${y}px`;
+        }
+
+        function hideTimelineTooltip() {
+            const tooltip = document.getElementById('server-a-graph-tooltip');
+            if (tooltip) tooltip.style.display = 'none';
         }
 
         // ==========================================

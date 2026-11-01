@@ -588,8 +588,8 @@ def check_server_a_status():
             "code": status_code
         }
         _server_a_history.append(point)
-        if len(_server_a_history) > 20:
-            _server_a_history = _server_a_history[-20:]
+        if len(_server_a_history) > 30:
+            _server_a_history = _server_a_history[-30:]
 
         return jsonify({
             "server_a_status": state,
@@ -613,8 +613,8 @@ def check_server_a_status():
             "code": 0
         }
         _server_a_history.append(point)
-        if len(_server_a_history) > 20:
-            _server_a_history = _server_a_history[-20:]
+        if len(_server_a_history) > 30:
+            _server_a_history = _server_a_history[-30:]
 
         log_security_event("server_a_crash_detected", "critical", f"Server A connection failed / crashed: {str(e)}")
         return jsonify({
