@@ -1,21 +1,20 @@
 {
     "version": 2,
-    "cleanUrls": true,
     "builds": [
         {
             "src": "app.py",
             "use": "@vercel/python"
         },
         {
-            "src": "css/**",
-            "use": "@vercel/static"
-        },
-        {
-            "src": "js/**",
-            "use": "@vercel/static"
-        },
-        {
             "src": "*.html",
+            "use": "@vercel/static"
+        },
+        {
+            "src": "*.css",
+            "use": "@vercel/static"
+        },
+        {
+            "src": "css/*.css",
             "use": "@vercel/static"
         },
         {
@@ -34,7 +33,7 @@
         },
         {
             "src": "/security-dashboard",
-            "dest": "/security-dashboard.html"
+            "dest": "/index.html"
         },
         {
             "src": "/(.*)",

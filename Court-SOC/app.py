@@ -5,8 +5,12 @@ import json
 import random
 import logging
 from datetime import datetime, timezone, timedelta
-from flask import Flask, request, jsonify, send_from_directory
-import requests
+try:
+    import requests
+except ImportError:
+    requests = None
+import urllib.request
+import urllib.error
 import pymongo
 import certifi
 from dotenv import load_dotenv
@@ -106,9 +110,19 @@ def execute_turso_query(query, params=None, is_content_db=False):
     }
 
     try:
-        resp = requests.post(endpoint, json=payload, headers=headers, timeout=5)
-        if resp.status_code == 200:
-            data = resp.json()
+        data = None
+        if requests is not None:
+            resp = requests.post(endpoint, json=payload, headers=headers, timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+        else:
+            req_data = json.dumps(payload).encode('utf-8')
+            ureq = urllib.request.Request(endpoint, data=req_data, headers=headers, method='POST')
+            with urllib.request.urlopen(ureq, timeout=5) as uresp:
+                if uresp.status == 200:
+                    data = json.loads(uresp.read().decode('utf-8'))
+
+        if data:
             res_obj = data.get("results", [])[0]
             if res_obj.get("type") == "ok":
                 response_val = res_obj.get("response", {})
@@ -187,9 +201,16 @@ def check_server_a_status():
     t0 = time.time()
     try:
         probe_url = f"{MAIN_SERVER_URL}/api/health"
-        resp = requests.get(probe_url, timeout=3)
+        status_code = None
+        if requests is not None:
+            resp = requests.get(probe_url, timeout=3)
+            status_code = resp.status_code
+        else:
+            ureq = urllib.request.Request(probe_url, headers={"User-Agent": "CyberSentinel-SOC/1.0"})
+            with urllib.request.urlopen(ureq, timeout=3) as uresp:
+                status_code = uresp.status
         latency_ms = round((time.time() - t0) * 1000, 1)
-        if resp.status_code == 200:
+        if status_code == 200:
             return jsonify({
                 "server_a_status": "ONLINE",
                 "crashed": False,
