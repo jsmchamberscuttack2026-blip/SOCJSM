@@ -315,25 +315,42 @@ def send_soc_otp_email(target_email, otp, expiry_str):
 def get_officer_info():
     email = get_security_officer_email()
     return jsonify({
-        "security_officer_email": email,
-        "security_officer_email_masked": mask_email(email),
+        "configured": bool(email),
         "chamber_name": "JSM Chambers",
         "service": "Cyber Sentinel Dedicated SOC"
     }), 200
 
 @app.route('/api/auth/send-otp', methods=['POST'])
+@app.route('/api/auth/login', methods=['POST'])
 def send_soc_otp():
     try:
-        target_email = get_security_officer_email()
         data = request.get_json(force=True, silent=True) or {}
-        entered_email = (data.get("email") or "").strip().lower()
+        user_id = str(data.get("user_id") or data.get("username") or "").strip()
+        entered_password = str(data.get("password") or data.get("email") or "").strip().lower()
 
-        # If user entered an email, ensure it matches the registered Security Officer email
-        if entered_email and entered_email != target_email.lower():
+        # Step 1: Strict Check on User ID: must be JSM
+        if user_id.upper() != "JSM":
+            log_security_event("soc_auth_failed", "warning", f"Security Officer authentication failed: Invalid User ID '{user_id}'.")
             return jsonify({
-                "error": f"The email '{entered_email}' is not the authorized Security Officer email configured in Chamber Admin Settings."
+                "error": "Invalid Security Officer ID. Access denied. (Authorized ID: JSM)"
+            }), 401
+
+        # Step 2: Strict Check on Password: must match the Security Officer email configured by Chamber Admin
+        target_email = get_security_officer_email().strip().lower()
+        if not target_email:
+            log_security_event("soc_auth_blocked", "critical", "Security Officer login attempted but no Security Officer email is configured in Chamber Admin Settings.")
+            return jsonify({
+                "error": "Access Denied: No Security Officer email has been configured by Chamber Admin in Settings."
             }), 403
 
+        if entered_password != target_email:
+            log_security_event("soc_auth_failed", "warning", f"Security Officer authentication failed: Email/Password '{entered_password}' does not match registered Security Officer.")
+            return jsonify({
+                "error": "Authentication failed: Password does not match the registered Security Officer email address configured by Chamber Admin."
+            }), 403
+
+        # Both ID 'JSM' and registered Security Officer Email match strictly!
+        # Now generate the 6-digit OTP and send to that exact email:
         otp = f"{random.randint(100000, 999999)}"
         expires_at = time.time() + 300  # 5 minutes
         expiry_str = (get_now_ist() + timedelta(minutes=5)).strftime("%I:%M:%S %p")
@@ -342,7 +359,7 @@ def send_soc_otp():
         if security_otps_col is not None:
             try:
                 security_otps_col.update_one(
-                    {"email": target_email.lower()},
+                    {"email": target_email},
                     {"$set": {"otp": otp, "expires_at": expires_at, "created_at": get_now_ist().isoformat()}},
                     upsert=True
                 )
@@ -350,12 +367,12 @@ def send_soc_otp():
                 logging.error(f"MongoDB OTP store error: {e}")
 
         # 2. In-memory fallback
-        _active_soc_otps[target_email.lower()] = {"otp": otp, "expires_at": expires_at}
+        _active_soc_otps[target_email] = {"otp": otp, "expires_at": expires_at}
 
-        # 3. Send email
+        # 3. Send email via SMTP
         sent, err = send_soc_otp_email(target_email, otp, expiry_str)
 
-        log_security_event("soc_otp_requested", "info", f"Security Officer OTP requested for {mask_email(target_email)}")
+        log_security_event("soc_otp_dispatched", "info", f"Security Officer credentials verified (ID: JSM). OTP dispatched to {mask_email(target_email)}.")
 
         return jsonify({
             "success": True,
@@ -363,7 +380,46 @@ def send_soc_otp():
             "target_email_masked": mask_email(target_email),
             "expires_in_seconds": 300,
             "email_sent": sent,
-            "message": f"A 6-digit authentication code has been sent to {mask_email(target_email)}."
+            "message": f"Credentials verified successfully! A 6-digit 2FA security code has been dispatched to {mask_email(target_email)}."
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/auth/resend-otp', methods=['POST'])
+def resend_soc_otp():
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        user_id = str(data.get("user_id") or data.get("username") or "").strip()
+        entered_password = str(data.get("password") or data.get("email") or "").strip().lower()
+
+        target_email = get_security_officer_email().strip().lower()
+        if user_id and user_id.upper() != "JSM":
+            return jsonify({"error": "Invalid Officer ID."}), 401
+        if entered_password and entered_password != target_email:
+            return jsonify({"error": "Invalid Officer Password."}), 403
+
+        otp = f"{random.randint(100000, 999999)}"
+        expires_at = time.time() + 300
+        expiry_str = (get_now_ist() + timedelta(minutes=5)).strftime("%I:%M:%S %p")
+
+        if security_otps_col is not None:
+            try:
+                security_otps_col.update_one(
+                    {"email": target_email},
+                    {"$set": {"otp": otp, "expires_at": expires_at, "created_at": get_now_ist().isoformat()}},
+                    upsert=True
+                )
+            except Exception as e:
+                logging.error(f"MongoDB OTP store error: {e}")
+
+        _active_soc_otps[target_email] = {"otp": otp, "expires_at": expires_at}
+        sent, err = send_soc_otp_email(target_email, otp, expiry_str)
+
+        return jsonify({
+            "success": True,
+            "target_email_masked": mask_email(target_email),
+            "expires_in_seconds": 300,
+            "message": f"A fresh 6-digit code has been dispatched to {mask_email(target_email)}."
         }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
