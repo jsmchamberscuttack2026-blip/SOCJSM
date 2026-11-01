@@ -1092,6 +1092,10 @@
                     <span id="top-admin-dot">🟢</span>
                     <span id="top-admin-text">Admin Panel: ACTIVE</span>
                 </div>
+                <div id="top-alarm-sound-pill" class="status-pill-btn status-pill-live" onclick="toggleAlertSound()" title="Click to Test / Mute / Unmute Outage Alarm Siren" style="margin-left: 6px; border-color: rgba(0, 242, 254, 0.4); cursor: pointer;">
+                    <span id="top-alarm-sound-icon">🔊</span>
+                    <span id="top-alarm-sound-text">Alarm: ACTIVE</span>
+                </div>
 
                 <button class="btn-soc btn-cyan" onclick="runLiveAuditScan()">
                     <span>⚡</span> Run Audit Scan
@@ -2460,8 +2464,51 @@
         </div>
     </div>
 
+    <!-- CYBER SENTINEL SOC DEDICATED MESSAGING & ACTION DIALOG -->
+    <div id="soc-dialog-modal" class="modal-overlay" style="display: none; align-items: center; justify-content: center; position: fixed; inset: 0; background: rgba(3, 10, 20, 0.88); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); z-index: 1000000; padding: 20px;">
+        <div class="modal-box" id="soc-dialog-box" style="background: linear-gradient(145deg, #071526, #0c213d); border: 2px solid #00f2fe; border-radius: 18px; max-width: 520px; width: 100%; padding: 28px; box-shadow: 0 25px 70px rgba(0, 0, 0, 0.9), 0 0 30px rgba(0, 242, 254, 0.15); color: #ffffff;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div id="soc-dialog-icon-badge" style="width: 46px; height: 46px; border-radius: 12px; background: rgba(0, 242, 254, 0.15); border: 1.5px solid #00f2fe; display: flex; align-items: center; justify-content: center; font-size: 24px;">
+                        🛡️
+                    </div>
+                    <div>
+                        <h3 id="soc-dialog-title" style="margin: 0; font-size: 1.25rem; font-weight: 800; color: #ffffff; letter-spacing: 0.3px;">
+                            Security Action Confirmation
+                        </h3>
+                        <div style="font-size: 0.72rem; color: #00f2fe; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; margin-top: 2px;">
+                            Cyber Sentinel SOC Protocol
+                        </div>
+                    </div>
+                </div>
+                <button type="button" onclick="cancelSocDialog()" style="background: transparent; border: none; font-size: 1.8rem; color: #64748b; cursor: pointer; line-height: 1; padding: 0 4px;" onmouseover="this.style.color='#ffffff'" onmouseout="this.style.color='#64748b'">&times;</button>
+            </div>
+
+            <div id="soc-dialog-message" style="font-size: 0.92rem; line-height: 1.6; color: #cbd5e1; margin-bottom: 20px; white-space: pre-line;">
+                Please confirm this security operation.
+            </div>
+
+            <!-- Optional Input Container for Prompt Replacement -->
+            <div id="soc-dialog-input-container" style="display: none; margin-bottom: 22px;">
+                <label id="soc-dialog-input-label" style="display: block; font-size: 0.76rem; color: #94a3b8; font-weight: 700; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px;">
+                    Input Details
+                </label>
+                <input type="text" id="soc-dialog-input" style="width: 100%; background: #050d1a; border: 1.5px solid #334155; border-radius: 8px; color: #ffffff; padding: 12px 14px; font-size: 0.88rem; outline: none;" onfocus="this.style.borderColor='#00f2fe'" onblur="this.style.borderColor='#334155'">
+            </div>
+
+            <div style="display: flex; gap: 12px; justify-content: flex-end; align-items: center; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 16px;">
+                <button type="button" class="btn-soc btn-outline-soc" id="soc-dialog-btn-cancel" onclick="cancelSocDialog()" style="padding: 10px 18px; font-size: 0.85rem;">
+                    Cancel
+                </button>
+                <button type="button" class="btn-soc" id="soc-dialog-btn-confirm" onclick="confirmSocDialog()" style="padding: 10px 22px; font-size: 0.88rem; font-weight: 800; background: linear-gradient(135deg, #00f2fe, #4facfe); color: #050c17; border: none; box-shadow: 0 4px 15px rgba(0, 242, 254, 0.35);">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notification -->
-    <div id="soc-toast"><span>✅</span> <span id="soc-toast-text">Operation successful</span></div>
+    <div id="soc-toast" style="border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);"><span id="soc-toast-icon">✅</span> <span id="soc-toast-text">Operation successful</span></div>
 
     <script>
         // Authentication Guard: Ensure user is authorized
@@ -2480,17 +2527,193 @@
         let currentActiveSection = 'overview';
         let currentInvestigatingIncident = null;
 
+        // ==========================================
+        //  CYBER SENTINEL SOC MESSAGING & DIALOG SYSTEM
+        // ==========================================
+        let activeDialogResolve = null;
+
         function showToast(msg, type = 'success') {
             const toast = document.getElementById('soc-toast');
             const text = document.getElementById('soc-toast-text');
+            const icon = document.getElementById('soc-toast-icon');
             if (!toast || !text) return;
             text.innerText = msg;
-            toast.style.background = (type === 'error') ? '#ef4444' : (type === 'warning') ? '#f59e0b' : '#10b981';
+            if (type === 'error') {
+                toast.style.background = 'linear-gradient(135deg, #7f1d1d, #991b1b)';
+                toast.style.borderColor = '#ef4444';
+                toast.style.boxShadow = '0 10px 30px rgba(239, 68, 68, 0.4)';
+                if (icon) icon.innerText = '🚨';
+            } else if (type === 'warning') {
+                toast.style.background = 'linear-gradient(135deg, #78350f, #92400e)';
+                toast.style.borderColor = '#f59e0b';
+                toast.style.boxShadow = '0 10px 30px rgba(245, 158, 11, 0.4)';
+                if (icon) icon.innerText = '⚠️';
+            } else if (type === 'info') {
+                toast.style.background = 'linear-gradient(135deg, #072a4a, #0369a1)';
+                toast.style.borderColor = '#00f2fe';
+                toast.style.boxShadow = '0 10px 30px rgba(0, 242, 254, 0.4)';
+                if (icon) icon.innerText = 'ℹ️';
+            } else {
+                toast.style.background = 'linear-gradient(135deg, #064e3b, #047857)';
+                toast.style.borderColor = '#10b981';
+                toast.style.boxShadow = '0 10px 30px rgba(16, 185, 129, 0.4)';
+                if (icon) icon.innerText = '✅';
+            }
             toast.classList.add('show');
-            setTimeout(() => {
+            clearTimeout(window.__socToastTimer);
+            window.__socToastTimer = setTimeout(() => {
                 toast.classList.remove('show');
-            }, 3500);
+            }, 4000);
         }
+
+        // Dedicated SOC Confirmation Dialog (Replaces native browser confirm())
+        function socConfirm({ title = 'Security Confirmation', message = '', icon = '⚠️', confirmText = 'Confirm', confirmType = 'primary' }) {
+            return new Promise((resolve) => {
+                activeDialogResolve = resolve;
+                const modal = document.getElementById('soc-dialog-modal');
+                const box = document.getElementById('soc-dialog-box');
+                const titleEl = document.getElementById('soc-dialog-title');
+                const msgEl = document.getElementById('soc-dialog-message');
+                const iconBadge = document.getElementById('soc-dialog-icon-badge');
+                const inputContainer = document.getElementById('soc-dialog-input-container');
+                const btnConfirm = document.getElementById('soc-dialog-btn-confirm');
+                const btnCancel = document.getElementById('soc-dialog-btn-cancel');
+
+                if (titleEl) titleEl.innerText = title;
+                if (msgEl) msgEl.innerText = message;
+                if (iconBadge) iconBadge.innerText = icon;
+                if (inputContainer) inputContainer.style.display = 'none';
+
+                if (btnConfirm) {
+                    btnConfirm.innerText = confirmText;
+                    if (confirmType === 'danger') {
+                        btnConfirm.style.background = 'linear-gradient(135deg, #ef4444, #991b1b)';
+                        btnConfirm.style.color = '#ffffff';
+                        btnConfirm.style.boxShadow = '0 4px 15px rgba(239, 68, 68, 0.4)';
+                        if (box) box.style.borderColor = '#ef4444';
+                        if (iconBadge) {
+                            iconBadge.style.borderColor = '#ef4444';
+                            iconBadge.style.background = 'rgba(239, 68, 68, 0.15)';
+                        }
+                    } else if (confirmType === 'warning') {
+                        btnConfirm.style.background = 'linear-gradient(135deg, #f59e0b, #b45309)';
+                        btnConfirm.style.color = '#ffffff';
+                        btnConfirm.style.boxShadow = '0 4px 15px rgba(245, 158, 11, 0.4)';
+                        if (box) box.style.borderColor = '#f59e0b';
+                        if (iconBadge) {
+                            iconBadge.style.borderColor = '#f59e0b';
+                            iconBadge.style.background = 'rgba(245, 158, 11, 0.15)';
+                        }
+                    } else {
+                        btnConfirm.style.background = 'linear-gradient(135deg, #00f2fe, #4facfe)';
+                        btnConfirm.style.color = '#050c17';
+                        btnConfirm.style.boxShadow = '0 4px 15px rgba(0, 242, 254, 0.35)';
+                        if (box) box.style.borderColor = '#00f2fe';
+                        if (iconBadge) {
+                            iconBadge.style.borderColor = '#00f2fe';
+                            iconBadge.style.background = 'rgba(0, 242, 254, 0.15)';
+                        }
+                    }
+                }
+
+                if (modal) modal.style.display = 'flex';
+                btnConfirm?.focus();
+            });
+        }
+
+        // Dedicated SOC Input Prompt Dialog (Replaces native browser prompt())
+        function socPrompt({ title = 'Security Input Required', message = '', icon = '📝', placeholder = '', defaultValue = '', label = 'Input details', confirmText = 'Submit', confirmType = 'primary' }) {
+            return new Promise((resolve) => {
+                activeDialogResolve = resolve;
+                const modal = document.getElementById('soc-dialog-modal');
+                const box = document.getElementById('soc-dialog-box');
+                const titleEl = document.getElementById('soc-dialog-title');
+                const msgEl = document.getElementById('soc-dialog-message');
+                const iconBadge = document.getElementById('soc-dialog-icon-badge');
+                const inputContainer = document.getElementById('soc-dialog-input-container');
+                const inputLabel = document.getElementById('soc-dialog-input-label');
+                const inputEl = document.getElementById('soc-dialog-input');
+                const btnConfirm = document.getElementById('soc-dialog-btn-confirm');
+
+                if (titleEl) titleEl.innerText = title;
+                if (msgEl) msgEl.innerText = message;
+                if (iconBadge) iconBadge.innerText = icon;
+                if (inputLabel) inputLabel.innerText = label;
+
+                if (inputContainer && inputEl) {
+                    inputContainer.style.display = 'block';
+                    inputEl.value = defaultValue;
+                    inputEl.placeholder = placeholder || 'Enter details...';
+                }
+
+                if (btnConfirm) {
+                    btnConfirm.innerText = confirmText;
+                    if (confirmType === 'danger') {
+                        btnConfirm.style.background = 'linear-gradient(135deg, #ef4444, #991b1b)';
+                        btnConfirm.style.color = '#ffffff';
+                        btnConfirm.style.boxShadow = '0 4px 15px rgba(239, 68, 68, 0.4)';
+                        if (box) box.style.borderColor = '#ef4444';
+                        if (iconBadge) {
+                            iconBadge.style.borderColor = '#ef4444';
+                            iconBadge.style.background = 'rgba(239, 68, 68, 0.15)';
+                        }
+                    } else {
+                        btnConfirm.style.background = 'linear-gradient(135deg, #00f2fe, #4facfe)';
+                        btnConfirm.style.color = '#050c17';
+                        btnConfirm.style.boxShadow = '0 4px 15px rgba(0, 242, 254, 0.35)';
+                        if (box) box.style.borderColor = '#00f2fe';
+                        if (iconBadge) {
+                            iconBadge.style.borderColor = '#00f2fe';
+                            iconBadge.style.background = 'rgba(0, 242, 254, 0.15)';
+                        }
+                    }
+                }
+
+                if (modal) modal.style.display = 'flex';
+                setTimeout(() => {
+                    inputEl?.focus();
+                    inputEl?.select();
+                }, 50);
+            });
+        }
+
+        function confirmSocDialog() {
+            const modal = document.getElementById('soc-dialog-modal');
+            const inputContainer = document.getElementById('soc-dialog-input-container');
+            const inputEl = document.getElementById('soc-dialog-input');
+
+            if (modal) modal.style.display = 'none';
+
+            if (activeDialogResolve) {
+                if (inputContainer && inputContainer.style.display !== 'none') {
+                    activeDialogResolve(inputEl ? inputEl.value : '');
+                } else {
+                    activeDialogResolve(true);
+                }
+                activeDialogResolve = null;
+            }
+        }
+
+        function cancelSocDialog() {
+            const modal = document.getElementById('soc-dialog-modal');
+            const inputContainer = document.getElementById('soc-dialog-input-container');
+
+            if (modal) modal.style.display = 'none';
+
+            if (activeDialogResolve) {
+                if (inputContainer && inputContainer.style.display !== 'none') {
+                    activeDialogResolve(null);
+                } else {
+                    activeDialogResolve(false);
+                }
+                activeDialogResolve = null;
+            }
+        }
+
+        // Safety override so browser "https://socjsm.vercel.app says" never shows
+        window.alert = function(msg) {
+            showToast(String(msg), 'info');
+        };
 
         function toggleSidebar() {
             document.getElementById('soc-sidebar')?.classList.toggle('open');
@@ -2767,10 +2990,17 @@
         async function toggleWebsiteStatusQuick() {
             const isOff = document.getElementById('soc-status-off')?.checked;
             const next = isOff ? 'on' : 'off';
-            const msg = (next === 'off') 
-                ? 'Engage Cyber Defense Lockdown (OFF)?\n\nAll public pages and APIs will immediately hide chamber data and show the repair screen.'
-                : 'Restore Public Website to LIVE (ON)?\n\nPublic visitors will immediately be able to view chamber information.';
-            if (!confirm(msg)) return;
+            const isLockdown = (next === 'off');
+            const confirmed = await socConfirm({
+                title: isLockdown ? 'Engage Public Website Lockdown' : 'Restore Public Website to LIVE',
+                message: isLockdown 
+                    ? 'All public chamber pages and appointment forms will immediately show the Cyber Defense Repair screen. Only authorized staff and SOC officers will maintain access.'
+                    : 'Public visitors will immediately be able to view chamber information, services, and appointment booking forms.',
+                icon: isLockdown ? '🚨' : '🟢',
+                confirmText: isLockdown ? 'Engage Lockdown (OFF)' : 'Restore Website (ON)',
+                confirmType: isLockdown ? 'danger' : 'primary'
+            });
+            if (!confirmed) return;
             await applyPublicWebsiteStatus(next);
         }
 
@@ -2837,7 +3067,16 @@
 
             let reason = "Critical situation containment / Emergency SOC Review";
             if (isLockdown) {
-                const entered = prompt("🚨 EMERGENCY ADMIN LOCKDOWN:\nEnter the specific critical situation or reason (this will be emailed to the Admin):", "Emergency security review in progress / Active threat containment");
+                const entered = await socPrompt({
+                    title: 'Emergency Admin Panel Lockdown',
+                    message: 'Specify the critical situation or reason. An official security incident dispatch will be emailed immediately to the Chamber Administrator:',
+                    icon: '🚨',
+                    label: 'Critical Situation / Lockdown Reason',
+                    defaultValue: 'Emergency security review in progress / Active threat containment',
+                    placeholder: 'Enter reason for admin lockdown...',
+                    confirmText: 'Lockdown Admin Portal',
+                    confirmType: 'danger'
+                });
                 if (entered === null) {
                     updateAdminStatusUI('on');
                     return;
@@ -3042,7 +3281,14 @@
         }
 
         async function wafUnbanAction(ip) {
-            if (!confirm(`Unban attacking IP ${ip} from the WAF firewall?`)) return;
+            const confirmed = await socConfirm({
+                title: 'WAF Firewall Unban',
+                message: `Are you sure you want to unban attacking IP ${ip} from the WAF firewall? This will restore traffic flow.`,
+                icon: '🔓',
+                confirmText: 'Unban IP',
+                confirmType: 'warning'
+            });
+            if (!confirmed) return;
             try {
                 const res = await fetch('/api/security/waf/unban', {
                     method: 'POST',
@@ -3126,7 +3372,16 @@
         }
 
         async function blockIpAction(ip) {
-            const reason = prompt(`Block and blacklist IP: ${ip}?\nEnter reason for restriction:`, 'Repeated unauthorized access / brute-force attempt');
+            const reason = await socPrompt({
+                title: `Blacklist IP Address: ${ip}`,
+                message: `Place IP ${ip} onto the Cyber Sentinel perimeter blacklist and block all traffic:`,
+                icon: '🚫',
+                label: 'Blacklist Reason',
+                defaultValue: 'Repeated unauthorized access / brute-force attempt',
+                placeholder: 'Enter reason for blacklisting...',
+                confirmText: 'Blacklist IP',
+                confirmType: 'danger'
+            });
             if (reason === null) return;
             try {
                 const res = await fetch('/api/security/threats/action', {
@@ -3148,7 +3403,14 @@
         }
 
         async function unblockIpAction(ip) {
-            if (!confirm(`Remove ${ip} from the blacklist and restore traffic access?`)) return;
+            const confirmed = await socConfirm({
+                title: 'Unblock IP Address',
+                message: `Remove IP ${ip} from the perimeter blacklist and restore traffic access?`,
+                icon: '🔓',
+                confirmText: 'Unblock IP',
+                confirmType: 'primary'
+            });
+            if (!confirmed) return;
             try {
                 const res = await fetch('/api/security/threats/action', {
                     method: 'POST',
@@ -3245,7 +3507,15 @@
         }
 
         async function unlockAccount(type, key) {
-            if (!confirm(`Are you sure you want to manually unlock this ${type === 'staff_account' ? 'staff account' : 'device'} (${key})?`)) return;
+            const targetName = (type === 'staff_account' ? 'staff account' : 'admin device');
+            const confirmed = await socConfirm({
+                title: 'Manual Security Unlock',
+                message: `Are you sure you want to lift the security lock for this ${targetName} (${key})? This will immediately permit new login attempts.`,
+                icon: '🔓',
+                confirmText: 'Unlock Access',
+                confirmType: 'primary'
+            });
+            if (!confirmed) return;
             try {
                 let res;
                 if (type === 'staff_account') {
@@ -3274,7 +3544,15 @@
         }
 
         async function forceLogoutAllSessions() {
-            if (!confirm('EMERGENCY ACTION: Terminate all active administrative and security sessions across the chamber portal? All active users will be required to re-authenticate via 2FA.')) return;
+            const confirmed = await socConfirm({
+                title: 'Terminate All Active Sessions',
+                message: 'EMERGENCY ACTION: Terminate all active administrative and security sessions across the chamber portal? All active users will be required to re-authenticate via 2FA.',
+                icon: '🚨',
+                confirmText: 'Terminate All Sessions',
+                confirmType: 'danger'
+            });
+            if (!confirmed) return;
+
             try {
                 const res = await fetch('/api/security/sessions/force-logout', {
                     method: 'POST',
@@ -3646,6 +3924,150 @@
 
         
         // ==========================================
+        //  CYBER SENTINEL SOC EMERGENCY SOUND ALARM
+        // ==========================================
+        let audioCtx = null;
+        let isAlarmSoundEnabled = true;
+        let serverDownAlarmInterval = null;
+        let previousServerAStatus = null;
+
+        function initAudioContext() {
+            if (!audioCtx) {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (AudioContextClass) {
+                    audioCtx = new AudioContextClass();
+                }
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        // Auto-unlock Web Audio API on initial user interactions
+        ['click', 'keydown', 'touchstart'].forEach(evt => {
+            document.addEventListener(evt, () => {
+                initAudioContext();
+            }, { once: false, passive: true });
+        });
+
+        // Generates an authentic dual-tone emergency SOC siren
+        function playCyberAlertSiren() {
+            if (!isAlarmSoundEnabled) return;
+            try {
+                initAudioContext();
+                if (!audioCtx) return;
+
+                const now = audioCtx.currentTime;
+                const masterGain = audioCtx.createGain();
+                masterGain.gain.setValueAtTime(0.35, now);
+                masterGain.connect(audioCtx.destination);
+
+                // Alternating high-urgency cyber security warning sweeps
+                const pulses = [
+                    { start: 0.00, end: 0.22, freq1: 960, freq2: 720 },
+                    { start: 0.28, end: 0.50, freq1: 960, freq2: 720 },
+                    { start: 0.56, end: 0.85, freq1: 1040, freq2: 640 },
+                    { start: 0.95, end: 1.25, freq1: 1040, freq2: 520 }
+                ];
+
+                pulses.forEach(p => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(p.freq1, now + p.start);
+                    osc.frequency.exponentialRampToValueAtTime(p.freq2, now + p.end);
+
+                    gain.gain.setValueAtTime(0.001, now + p.start);
+                    gain.gain.linearRampToValueAtTime(0.35, now + p.start + 0.03);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + p.end);
+
+                    osc.connect(gain);
+                    gain.connect(masterGain);
+
+                    osc.start(now + p.start);
+                    osc.stop(now + p.end);
+                });
+            } catch (err) {
+                console.warn('Audio alarm playback notice:', err);
+            }
+        }
+
+        // Generates a positive recovery chime when Server comes back online
+        function playRecoveryChime() {
+            if (!isAlarmSoundEnabled) return;
+            try {
+                initAudioContext();
+                if (!audioCtx) return;
+
+                const now = audioCtx.currentTime;
+                const masterGain = audioCtx.createGain();
+                masterGain.gain.setValueAtTime(0.25, now);
+                masterGain.connect(audioCtx.destination);
+
+                // Rising pleasant chime sequence (C5 -> E5 -> G5)
+                const notes = [523.25, 659.25, 783.99];
+                notes.forEach((freq, idx) => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.14);
+
+                    gain.gain.setValueAtTime(0.001, now + idx * 0.14);
+                    gain.gain.linearRampToValueAtTime(0.28, now + idx * 0.14 + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.14 + 0.35);
+
+                    osc.connect(gain);
+                    gain.connect(masterGain);
+
+                    osc.start(now + idx * 0.14);
+                    osc.stop(now + idx * 0.14 + 0.38);
+                });
+            } catch (err) {
+                console.warn('Recovery chime notice:', err);
+            }
+        }
+
+        function startServerDownAlarmLoop() {
+            if (serverDownAlarmInterval) return;
+            playCyberAlertSiren();
+            // Repeat warning siren every 8 seconds while server remains down
+            serverDownAlarmInterval = setInterval(() => {
+                playCyberAlertSiren();
+            }, 8000);
+        }
+
+        function stopServerDownAlarmLoop() {
+            if (serverDownAlarmInterval) {
+                clearInterval(serverDownAlarmInterval);
+                serverDownAlarmInterval = null;
+            }
+        }
+
+        function toggleAlertSound() {
+            initAudioContext();
+            isAlarmSoundEnabled = !isAlarmSoundEnabled;
+            const icon = document.getElementById('top-alarm-sound-icon');
+            const text = document.getElementById('top-alarm-sound-text');
+            const pill = document.getElementById('top-alarm-sound-pill');
+
+            if (isAlarmSoundEnabled) {
+                if (icon) icon.innerText = '🔊';
+                if (text) text.innerText = 'Alarm: ACTIVE';
+                if (pill) pill.className = 'status-pill-btn status-pill-live';
+                showToast('🚨 Outage Alarm Siren is now ACTIVE (Will sound if server goes down)', 'info');
+                playCyberAlertSiren(); // Quick audible verification chirp
+            } else {
+                if (icon) icon.innerText = '🔇';
+                if (text) text.innerText = 'Alarm: MUTED';
+                if (pill) pill.className = 'status-pill-btn status-pill-repair';
+                stopServerDownAlarmLoop();
+                showToast('🔇 Outage Alarm Siren has been MUTED', 'warning');
+            }
+        }
+
+        // ==========================================
         //  SERVER A LIVE PROBE & CRASH MONITOR (EVERY 5 SECONDS)
         // ==========================================
         let isProbingServerA = false;
@@ -3679,6 +4101,15 @@
                 if (httpCode) httpCode.innerText = data.status_code ? `${data.status_code} OK` : '0 ERR';
 
                 if (status === 'ONLINE') {
+                    if (previousServerAStatus === 'DOWN') {
+                        stopServerDownAlarmLoop();
+                        playRecoveryChime();
+                        showToast('🟢 Main Operations Server A has RECOVERED and is back ONLINE!', 'success');
+                    } else {
+                        stopServerDownAlarmLoop();
+                    }
+                    previousServerAStatus = 'ONLINE';
+
                     if (card) { card.className = 'server-a-monitor-card'; }
                     if (pulseDot) { pulseDot.className = 'pulse-indicator pulse-up'; }
                     if (badge) { badge.className = 'badge-soc badge-pass'; badge.innerText = '🟢 UP (HEALTHY)'; }
@@ -3693,6 +4124,9 @@
                         topText.innerText = `Server A: UP (${lat}ms)`;
                     }
                 } else if (status === 'SLOW') {
+                    stopServerDownAlarmLoop();
+                    previousServerAStatus = 'SLOW';
+
                     if (card) { card.className = 'server-a-monitor-card state-slow'; }
                     if (pulseDot) { pulseDot.className = 'pulse-indicator pulse-slow'; }
                     if (badge) { badge.className = 'badge-soc badge-warning'; badge.innerText = '🟡 SLOW (HIGH LATENCY)'; }
@@ -3714,6 +4148,9 @@
                     }
                 } else {
                     // CRASHED / DOWN
+                    previousServerAStatus = 'DOWN';
+                    startServerDownAlarmLoop();
+
                     if (card) { card.className = 'server-a-monitor-card state-crashed'; }
                     if (pulseDot) { pulseDot.className = 'pulse-indicator pulse-down'; }
                     if (badge) { badge.className = 'badge-soc badge-critical'; badge.innerText = '🔴 DOWN / CRASHED'; }
@@ -3739,6 +4176,8 @@
                 renderServerATimelineGraph(data.history || [], data);
             } catch (e) {
                 console.error("Server A probe failed:", e);
+                previousServerAStatus = 'DOWN';
+                startServerDownAlarmLoop();
             } finally {
                 isProbingServerA = false;
             }

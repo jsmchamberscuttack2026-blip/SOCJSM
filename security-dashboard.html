@@ -1092,6 +1092,10 @@
                     <span id="top-admin-dot">🟢</span>
                     <span id="top-admin-text">Admin Panel: ACTIVE</span>
                 </div>
+                <div id="top-alarm-sound-pill" class="status-pill-btn status-pill-live" onclick="toggleAlertSound()" title="Click to Test / Mute / Unmute Outage Alarm Siren" style="margin-left: 6px; border-color: rgba(0, 242, 254, 0.4); cursor: pointer;">
+                    <span id="top-alarm-sound-icon">🔊</span>
+                    <span id="top-alarm-sound-text">Alarm: ACTIVE</span>
+                </div>
 
                 <button class="btn-soc btn-cyan" onclick="runLiveAuditScan()">
                     <span>⚡</span> Run Audit Scan
@@ -3920,6 +3924,150 @@
 
         
         // ==========================================
+        //  CYBER SENTINEL SOC EMERGENCY SOUND ALARM
+        // ==========================================
+        let audioCtx = null;
+        let isAlarmSoundEnabled = true;
+        let serverDownAlarmInterval = null;
+        let previousServerAStatus = null;
+
+        function initAudioContext() {
+            if (!audioCtx) {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (AudioContextClass) {
+                    audioCtx = new AudioContextClass();
+                }
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        // Auto-unlock Web Audio API on initial user interactions
+        ['click', 'keydown', 'touchstart'].forEach(evt => {
+            document.addEventListener(evt, () => {
+                initAudioContext();
+            }, { once: false, passive: true });
+        });
+
+        // Generates an authentic dual-tone emergency SOC siren
+        function playCyberAlertSiren() {
+            if (!isAlarmSoundEnabled) return;
+            try {
+                initAudioContext();
+                if (!audioCtx) return;
+
+                const now = audioCtx.currentTime;
+                const masterGain = audioCtx.createGain();
+                masterGain.gain.setValueAtTime(0.35, now);
+                masterGain.connect(audioCtx.destination);
+
+                // Alternating high-urgency cyber security warning sweeps
+                const pulses = [
+                    { start: 0.00, end: 0.22, freq1: 960, freq2: 720 },
+                    { start: 0.28, end: 0.50, freq1: 960, freq2: 720 },
+                    { start: 0.56, end: 0.85, freq1: 1040, freq2: 640 },
+                    { start: 0.95, end: 1.25, freq1: 1040, freq2: 520 }
+                ];
+
+                pulses.forEach(p => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(p.freq1, now + p.start);
+                    osc.frequency.exponentialRampToValueAtTime(p.freq2, now + p.end);
+
+                    gain.gain.setValueAtTime(0.001, now + p.start);
+                    gain.gain.linearRampToValueAtTime(0.35, now + p.start + 0.03);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + p.end);
+
+                    osc.connect(gain);
+                    gain.connect(masterGain);
+
+                    osc.start(now + p.start);
+                    osc.stop(now + p.end);
+                });
+            } catch (err) {
+                console.warn('Audio alarm playback notice:', err);
+            }
+        }
+
+        // Generates a positive recovery chime when Server comes back online
+        function playRecoveryChime() {
+            if (!isAlarmSoundEnabled) return;
+            try {
+                initAudioContext();
+                if (!audioCtx) return;
+
+                const now = audioCtx.currentTime;
+                const masterGain = audioCtx.createGain();
+                masterGain.gain.setValueAtTime(0.25, now);
+                masterGain.connect(audioCtx.destination);
+
+                // Rising pleasant chime sequence (C5 -> E5 -> G5)
+                const notes = [523.25, 659.25, 783.99];
+                notes.forEach((freq, idx) => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.14);
+
+                    gain.gain.setValueAtTime(0.001, now + idx * 0.14);
+                    gain.gain.linearRampToValueAtTime(0.28, now + idx * 0.14 + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.14 + 0.35);
+
+                    osc.connect(gain);
+                    gain.connect(masterGain);
+
+                    osc.start(now + idx * 0.14);
+                    osc.stop(now + idx * 0.14 + 0.38);
+                });
+            } catch (err) {
+                console.warn('Recovery chime notice:', err);
+            }
+        }
+
+        function startServerDownAlarmLoop() {
+            if (serverDownAlarmInterval) return;
+            playCyberAlertSiren();
+            // Repeat warning siren every 8 seconds while server remains down
+            serverDownAlarmInterval = setInterval(() => {
+                playCyberAlertSiren();
+            }, 8000);
+        }
+
+        function stopServerDownAlarmLoop() {
+            if (serverDownAlarmInterval) {
+                clearInterval(serverDownAlarmInterval);
+                serverDownAlarmInterval = null;
+            }
+        }
+
+        function toggleAlertSound() {
+            initAudioContext();
+            isAlarmSoundEnabled = !isAlarmSoundEnabled;
+            const icon = document.getElementById('top-alarm-sound-icon');
+            const text = document.getElementById('top-alarm-sound-text');
+            const pill = document.getElementById('top-alarm-sound-pill');
+
+            if (isAlarmSoundEnabled) {
+                if (icon) icon.innerText = '🔊';
+                if (text) text.innerText = 'Alarm: ACTIVE';
+                if (pill) pill.className = 'status-pill-btn status-pill-live';
+                showToast('🚨 Outage Alarm Siren is now ACTIVE (Will sound if server goes down)', 'info');
+                playCyberAlertSiren(); // Quick audible verification chirp
+            } else {
+                if (icon) icon.innerText = '🔇';
+                if (text) text.innerText = 'Alarm: MUTED';
+                if (pill) pill.className = 'status-pill-btn status-pill-repair';
+                stopServerDownAlarmLoop();
+                showToast('🔇 Outage Alarm Siren has been MUTED', 'warning');
+            }
+        }
+
+        // ==========================================
         //  SERVER A LIVE PROBE & CRASH MONITOR (EVERY 5 SECONDS)
         // ==========================================
         let isProbingServerA = false;
@@ -3953,6 +4101,15 @@
                 if (httpCode) httpCode.innerText = data.status_code ? `${data.status_code} OK` : '0 ERR';
 
                 if (status === 'ONLINE') {
+                    if (previousServerAStatus === 'DOWN') {
+                        stopServerDownAlarmLoop();
+                        playRecoveryChime();
+                        showToast('🟢 Main Operations Server A has RECOVERED and is back ONLINE!', 'success');
+                    } else {
+                        stopServerDownAlarmLoop();
+                    }
+                    previousServerAStatus = 'ONLINE';
+
                     if (card) { card.className = 'server-a-monitor-card'; }
                     if (pulseDot) { pulseDot.className = 'pulse-indicator pulse-up'; }
                     if (badge) { badge.className = 'badge-soc badge-pass'; badge.innerText = '🟢 UP (HEALTHY)'; }
@@ -3967,6 +4124,9 @@
                         topText.innerText = `Server A: UP (${lat}ms)`;
                     }
                 } else if (status === 'SLOW') {
+                    stopServerDownAlarmLoop();
+                    previousServerAStatus = 'SLOW';
+
                     if (card) { card.className = 'server-a-monitor-card state-slow'; }
                     if (pulseDot) { pulseDot.className = 'pulse-indicator pulse-slow'; }
                     if (badge) { badge.className = 'badge-soc badge-warning'; badge.innerText = '🟡 SLOW (HIGH LATENCY)'; }
@@ -3988,6 +4148,9 @@
                     }
                 } else {
                     // CRASHED / DOWN
+                    previousServerAStatus = 'DOWN';
+                    startServerDownAlarmLoop();
+
                     if (card) { card.className = 'server-a-monitor-card state-crashed'; }
                     if (pulseDot) { pulseDot.className = 'pulse-indicator pulse-down'; }
                     if (badge) { badge.className = 'badge-soc badge-critical'; badge.innerText = '🔴 DOWN / CRASHED'; }
@@ -4013,6 +4176,8 @@
                 renderServerATimelineGraph(data.history || [], data);
             } catch (e) {
                 console.error("Server A probe failed:", e);
+                previousServerAStatus = 'DOWN';
+                startServerDownAlarmLoop();
             } finally {
                 isProbingServerA = false;
             }
