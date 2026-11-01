@@ -14,10 +14,6 @@
             "use": "@vercel/static"
         },
         {
-            "src": "css/*.css",
-            "use": "@vercel/static"
-        },
-        {
             "src": "*.jpg",
             "use": "@vercel/static"
         }
@@ -29,7 +25,7 @@
         },
         {
             "src": "/api/(.*)",
-            "dest": "app.py"
+            "dest": "/app.py"
         },
         {
             "src": "/",
