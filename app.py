@@ -73,6 +73,14 @@ TURSO_CONTENT_AUTH_TOKEN = os.environ.get("TURSO_CONTENT_AUTH_TOKEN") or os.envi
 # MongoDB Setup
 client = None
 db = None
+
+@app.route('/api/version', methods=['GET'])
+def get_version():
+    return jsonify({
+        "version": "2.4.0-ipv4-smtp-resilient",
+        "service": "Cyber Sentinel Dedicated SOC",
+        "timestamp": get_now_ist().strftime("%d %b %Y, %I:%M:%S %p")
+    }), 200
 security_logs_col = None
 security_incidents_col = None
 security_blocked_ips_col = None
