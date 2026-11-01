@@ -666,24 +666,96 @@ def manage_settings():
     try:
         if request.method == 'POST':
             data = request.get_json(force=True, silent=True) or {}
+            new_status = None
             if "status" in data:
-                new_status = data["status"]
-                if config_col is not None:
-                    config_col.update_one(
-                        {"_id": "public_website_status"},
-                        {"$set": {"status": new_status, "updated_at": get_now_ist().isoformat()}},
-                        upsert=True
+                new_status = str(data["status"]).strip().lower()
+            elif "public_page_status" in data:
+                new_status = str(data["public_page_status"]).strip().lower()
+            elif "public_website_enabled" in data:
+                new_status = "on" if data["public_website_enabled"] else "off"
+
+            if not new_status or new_status not in ["on", "off"]:
+                new_status = "on"
+
+            is_enabled = (new_status == "on")
+            now_iso = get_now_ist().isoformat()
+
+            # 1. Update config_col in MongoDB Atlas
+            if config_col is not None:
+                config_col.update_one(
+                    {"_id": "public_website_status"},
+                    {"$set": {"status": new_status, "updated_at": now_iso}},
+                    upsert=True
+                )
+
+            # 2. Update settings_col in MongoDB Atlas (what Server A checks)
+            if settings_col is not None:
+                settings_col.update_one(
+                    {"_id": "office_info"},
+                    {"$set": {
+                        "public_page_status": new_status,
+                        "public_website_enabled": is_enabled,
+                        "lockdown_updated_at": now_iso
+                    }},
+                    upsert=True
+                )
+
+            # 3. Synchronize with Server A via live HTTP endpoint
+            try:
+                sync_payload = {
+                    "public_page_status": new_status,
+                    "public_website_enabled": is_enabled
+                }
+                if requests is not None:
+                    requests.post(
+                        f"{MAIN_SERVER_URL}/api/settings",
+                        json=sync_payload,
+                        headers={"Content-Type": "application/json", "X-Admin-Request": "true"},
+                        timeout=3
                     )
-                log_security_event("public_status_toggled", "warning" if new_status == "off" else "info", f"Public website status switched to {new_status.upper()}.")
-                return jsonify({"success": True, "status": new_status}), 200
+                else:
+                    req_data = json.dumps(sync_payload).encode('utf-8')
+                    ureq = urllib.request.Request(
+                        f"{MAIN_SERVER_URL}/api/settings",
+                        data=req_data,
+                        headers={"Content-Type": "application/json", "X-Admin-Request": "true"},
+                        method='POST'
+                    )
+                    with urllib.request.urlopen(ureq, timeout=3) as _:
+                        pass
+            except Exception as se:
+                logging.warning(f"Could not notify Server A directly over HTTP: {se}")
+
+            log_security_event(
+                "public_status_toggled",
+                "warning" if new_status == "off" else "info",
+                f"Public website status switched to {new_status.upper()} (Lockdown {'ENGAGED' if new_status == 'off' else 'DISENGAGED'})."
+            )
+            return jsonify({
+                "success": True,
+                "status": new_status,
+                "public_page_status": new_status,
+                "public_website_enabled": is_enabled
+            }), 200
 
         # GET
         status_val = "on"
-        if config_col is not None:
+        if settings_col is not None:
+            sdoc = settings_col.find_one({"_id": "office_info"}, {"public_page_status": 1, "public_website_enabled": 1})
+            if sdoc:
+                if "public_page_status" in sdoc:
+                    status_val = str(sdoc["public_page_status"]).strip().lower()
+                elif "public_website_enabled" in sdoc:
+                    status_val = "on" if sdoc["public_website_enabled"] else "off"
+        elif config_col is not None:
             doc = config_col.find_one({"_id": "public_website_status"})
             if doc:
-                status_val = doc.get("status", "on")
-        return jsonify({"status": status_val}), 200
+                status_val = str(doc.get("status", "on")).strip().lower()
+        return jsonify({
+            "status": status_val,
+            "public_page_status": status_val,
+            "public_website_enabled": (status_val == "on")
+        }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

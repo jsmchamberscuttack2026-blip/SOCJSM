@@ -2048,7 +2048,7 @@
                 const res = await fetch('/api/settings', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-Admin-Request': 'true' },
-                    body: JSON.stringify({ public_page_status: status, public_website_enabled: enabled })
+                    body: JSON.stringify({ status: status, public_page_status: status, public_website_enabled: enabled })
                 });
                 if (res.ok) {
                     updateStatusUI(status);
