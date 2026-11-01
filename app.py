@@ -18,6 +18,10 @@ try:
 except ImportError:
     pymongo = None
     certifi = None
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.utils import formatdate, make_msgid
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -32,6 +36,12 @@ def get_now_ist():
     return datetime.now(IST)
 
 MAIN_SERVER_URL = os.environ.get("MAIN_SERVER_URL", "https://jsm-chamber-cuttack-odisha-30.vercel.app").rstrip('/')
+
+# SMTP Configuration for SOC Officer OTP 2FA
+SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", 587))
+SMTP_USER = os.environ.get("SMTP_USER", "jsmchamberscuttack2026@gmail.com")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
 
 # Database Connections
 MONGO_URI = os.environ.get("MONGO_URI") or os.environ.get("MONGODB_URI")
@@ -52,6 +62,7 @@ security_audit_scans_col = None
 settings_col = None
 config_col = None
 advocates_col = None
+security_otps_col = None
 
 if MONGO_URI and pymongo is not None:
     try:
@@ -69,6 +80,7 @@ if MONGO_URI and pymongo is not None:
         settings_col = db["settings"]
         config_col = db["config"]
         advocates_col = db["advocates"]
+        security_otps_col = db["security_otps"]
         logging.info("Connected to MongoDB Atlas for Cyber Sentinel SOC.")
     except Exception as me:
         logging.error(f"MongoDB connection error: {me}")
@@ -214,55 +226,281 @@ def soc_health():
         "timestamp": ts
     }), 200
 
-# Server A Live Probe & Crash Detection Endpoint
+# In-memory history for live telemetry sparklines and crash logs
+_server_a_history = []
+_active_soc_otps = {}  # Fallback in-memory OTP store
+
+def get_security_officer_email():
+    try:
+        if settings_col is not None:
+            s = settings_col.find_one({"_id": "office_info"}, {"security_officer_email": 1}) or {}
+            email = str(s.get("security_officer_email", "") or "").strip()
+            if email and "@" in email:
+                return email
+    except Exception as e:
+        logging.error(f"Error reading security_officer_email: {e}")
+    return "arnnavpanda@gmail.com"
+
+def mask_email(email):
+    if not email or "@" not in email:
+        return "officer@jsmchambers.in"
+    user, domain = email.split("@", 1)
+    if len(user) <= 2:
+        masked_user = user[0] + "***"
+    else:
+        masked_user = user[0] + "***" + user[-1]
+    return f"{masked_user}@{domain}"
+
+def send_soc_otp_email(target_email, otp, expiry_str):
+    if not SMTP_PASSWORD or not SMTP_USER:
+        logging.warning(f"SMTP credentials not present in environment; OTP for {target_email} is: {otp}")
+        return False, "SMTP password not set"
+
+    msg = MIMEMultipart('alternative')
+    msg['Date'] = formatdate(localtime=True)
+    msg['Message-ID'] = make_msgid()
+    msg['From'] = f"JSM Cyber Sentinel SOC <{SMTP_USER}>"
+    msg['To'] = target_email
+    msg['Subject'] = f"🛡️ Cyber Sentinel SOC - Security Officer Login OTP: {otp}"
+
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"></head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #060e1a; margin: 0; padding: 24px; color: #f8fafc;">
+      <div style="max-width: 520px; margin: 0 auto; background: #0a1728; border-radius: 16px; overflow: hidden; border: 2px solid #D4AF37; box-shadow: 0 10px 40px rgba(0,0,0,0.7);">
+        <div style="background: #050c17; padding: 24px; border-bottom: 2px solid #D4AF37; text-align: center;">
+          <div style="font-size: 34px; margin-bottom: 8px;">🛡️</div>
+          <h2 style="color: #ffffff; margin: 0; font-family: Georgia, serif; font-size: 20px;">CYBER SENTINEL SOC</h2>
+          <p style="color: #D4AF37; margin: 4px 0 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; font-weight: 700;">Security Operations Center · Officer Authentication</p>
+        </div>
+        <div style="padding: 30px 26px; text-align: center;">
+          <p style="color: #cbd5e1; font-size: 14px; margin: 0 0 16px 0;">Use the single-use 2FA verification code below to authorize access to the Dedicated Cyber Sentinel SOC server:</p>
+          <div style="background: rgba(212, 175, 55, 0.1); border-radius: 12px; padding: 20px; text-align: center; margin: 20px 0; border: 1.5px solid #D4AF37;">
+            <div style="font-size: 10px; color: #D4AF37; text-transform: uppercase; letter-spacing: 2px; font-weight: 700; margin-bottom: 6px;">Authentication Code</div>
+            <div style="font-size: 38px; font-weight: 900; color: #ffffff; letter-spacing: 12px; font-family: monospace;">{otp}</div>
+            <div style="color: #94a3b8; font-size: 11.5px; margin-top: 8px;">⏱️ Code expires at <strong>{expiry_str} IST</strong> (Valid for 5 minutes)</div>
+          </div>
+          <p style="color: #64748b; font-size: 11.5px; line-height: 1.5; margin: 16px 0 0 0;">
+            This authorization grants operational control over live telemetry, server crash detection, WAF defenses, and public website lockdown.
+          </p>
+        </div>
+        <div style="background: #050c17; padding: 12px; text-align: center; font-size: 11px; color: #64748b; border-top: 1px solid rgba(255,255,255,0.08);">
+          JSM Chambers · Cyber Security Operations Center (Dedicated Server B)
+        </div>
+      </div>
+    </body>
+    </html>
+    """
+    msg.attach(MIMEText(html, 'html', 'utf-8'))
+
+    try:
+        server = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=8)
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+        server.login(SMTP_USER, SMTP_PASSWORD)
+        server.sendmail(SMTP_USER, [target_email], msg.as_string())
+        server.quit()
+        return True, "Email sent successfully"
+    except Exception as e:
+        logging.error(f"Failed to send SOC OTP email: {e}")
+        return False, str(e)
+
+# =========================================================
+#  SECURITY OFFICER OTP AUTHENTICATION ENDPOINTS
+# =========================================================
+
+@app.route('/api/auth/officer-info', methods=['GET'])
+def get_officer_info():
+    email = get_security_officer_email()
+    return jsonify({
+        "security_officer_email": email,
+        "security_officer_email_masked": mask_email(email),
+        "chamber_name": "JSM Chambers",
+        "service": "Cyber Sentinel Dedicated SOC"
+    }), 200
+
+@app.route('/api/auth/send-otp', methods=['POST'])
+def send_soc_otp():
+    try:
+        target_email = get_security_officer_email()
+        data = request.get_json(force=True, silent=True) or {}
+        entered_email = (data.get("email") or "").strip().lower()
+
+        # If user entered an email, ensure it matches the registered Security Officer email
+        if entered_email and entered_email != target_email.lower():
+            return jsonify({
+                "error": f"The email '{entered_email}' is not the authorized Security Officer email configured in Chamber Admin Settings."
+            }), 403
+
+        otp = f"{random.randint(100000, 999999)}"
+        expires_at = time.time() + 300  # 5 minutes
+        expiry_str = (get_now_ist() + timedelta(minutes=5)).strftime("%I:%M:%S %p")
+
+        # 1. Store in MongoDB Atlas
+        if security_otps_col is not None:
+            try:
+                security_otps_col.update_one(
+                    {"email": target_email.lower()},
+                    {"$set": {"otp": otp, "expires_at": expires_at, "created_at": get_now_ist().isoformat()}},
+                    upsert=True
+                )
+            except Exception as e:
+                logging.error(f"MongoDB OTP store error: {e}")
+
+        # 2. In-memory fallback
+        _active_soc_otps[target_email.lower()] = {"otp": otp, "expires_at": expires_at}
+
+        # 3. Send email
+        sent, err = send_soc_otp_email(target_email, otp, expiry_str)
+
+        log_security_event("soc_otp_requested", "info", f"Security Officer OTP requested for {mask_email(target_email)}")
+
+        return jsonify({
+            "success": True,
+            "target_email": target_email,
+            "target_email_masked": mask_email(target_email),
+            "expires_in_seconds": 300,
+            "email_sent": sent,
+            "message": f"A 6-digit authentication code has been sent to {mask_email(target_email)}."
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/auth/verify-otp', methods=['POST'])
+def verify_soc_otp():
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        code = str(data.get("otp", "")).strip()
+        if not code or len(code) != 6:
+            return jsonify({"error": "Please enter a valid 6-digit verification code."}), 400
+
+        target_email = get_security_officer_email().lower()
+        now_ts = time.time()
+
+        valid = False
+        # Check MongoDB
+        if security_otps_col is not None:
+            try:
+                rec = security_otps_col.find_one({"email": target_email, "otp": code})
+                if rec and rec.get("expires_at", 0) >= now_ts:
+                    valid = True
+                    security_otps_col.delete_one({"_id": rec["_id"]})
+            except Exception as e:
+                logging.error(f"MongoDB OTP verify error: {e}")
+
+        # Check in-memory fallback
+        if not valid and target_email in _active_soc_otps:
+            rec = _active_soc_otps[target_email]
+            if rec.get("otp") == code and rec.get("expires_at", 0) >= now_ts:
+                valid = True
+                _active_soc_otps.pop(target_email, None)
+
+        if valid:
+            token = f"soc_sec_{int(now_ts)}_{random.randint(100000, 999999)}"
+            log_security_event("soc_login_success", "info", f"Security Officer {target_email} authenticated successfully via OTP.")
+            resp = jsonify({
+                "success": True,
+                "officer_email": target_email,
+                "token": token,
+                "message": "Authentication successful. Access granted to Cyber Sentinel SOC."
+            })
+            resp.set_cookie("security_officer_logged_in", "true", max_age=86400, httponly=False, samesite="Lax")
+            return resp, 200
+        else:
+            log_security_event("soc_login_failed", "warning", f"Invalid or expired OTP attempt for {target_email}")
+            return jsonify({"error": "Invalid or expired OTP. Please check your email or request a new code."}), 401
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# =========================================================
+#  SERVER A LIVE PROBE, CRASH & LATENCY DETECTOR
+# =========================================================
 @app.route('/api/security/server-a-status', methods=['GET'])
 def check_server_a_status():
-    """Probes Main Server A health. Detects crashes or downtime immediately."""
+    """Probes Main Server A health. Detects UP / SLOW / CRASHED states in real time."""
+    global _server_a_history
     t0 = time.time()
     try:
         probe_url = f"{MAIN_SERVER_URL}/api/health"
         status_code = None
         if requests is not None:
-            resp = requests.get(probe_url, timeout=3)
+            resp = requests.get(probe_url, timeout=4)
             status_code = resp.status_code
         else:
             ureq = urllib.request.Request(probe_url, headers={"User-Agent": "CyberSentinel-SOC/1.0"})
-            with urllib.request.urlopen(ureq, timeout=3) as uresp:
+            with urllib.request.urlopen(ureq, timeout=4) as uresp:
                 status_code = uresp.status
         latency_ms = round((time.time() - t0) * 1000, 1)
+
         if status_code == 200:
-            return jsonify({
-                "server_a_status": "ONLINE",
-                "crashed": False,
-                "status_code": 200,
-                "latency_ms": latency_ms,
-                "main_server_url": MAIN_SERVER_URL,
-                "timestamp_ist": get_now_ist().strftime("%d %b %Y, %I:%M:%S %p"),
-                "message": "Main Chamber Operations Server is fully operational and responsive."
-            }), 200
+            if latency_ms < 800:
+                state = "ONLINE"
+                health = "HEALTHY"
+                badge = "UP"
+                msg = "Main Chamber Operations Server A is responsive, healthy, and operational."
+            else:
+                state = "SLOW"
+                health = "DEGRADED"
+                badge = "SLOW"
+                msg = f"Main Server A is responding with high latency ({latency_ms} ms)."
         else:
-            log_security_event("server_a_degraded", "warning", f"Server A returned HTTP {resp.status_code}")
-            return jsonify({
-                "server_a_status": "DEGRADED",
-                "crashed": True,
-                "status_code": resp.status_code,
-                "latency_ms": latency_ms,
-                "main_server_url": MAIN_SERVER_URL,
-                "timestamp_ist": get_now_ist().strftime("%d %b %Y, %I:%M:%S %p"),
-                "message": f"Server A returned HTTP {resp.status_code}."
-            }), 200
+            state = "DEGRADED"
+            health = "DEGRADED"
+            badge = "DEGRADED"
+            msg = f"Server A returned HTTP status {status_code}."
+            log_security_event("server_a_degraded", "warning", f"Server A returned HTTP {status_code}")
+
+        point = {
+            "time": get_now_ist().strftime("%H:%M:%S"),
+            "latency": latency_ms,
+            "status": state,
+            "code": status_code
+        }
+        _server_a_history.append(point)
+        if len(_server_a_history) > 20:
+            _server_a_history = _server_a_history[-20:]
+
+        return jsonify({
+            "server_a_status": state,
+            "health": health,
+            "badge": badge,
+            "crashed": False,
+            "is_slow": (state == "SLOW"),
+            "status_code": status_code,
+            "latency_ms": latency_ms,
+            "main_server_url": MAIN_SERVER_URL,
+            "timestamp_ist": get_now_ist().strftime("%d %b %Y, %I:%M:%S %p"),
+            "history": _server_a_history,
+            "message": msg
+        }), 200
     except Exception as e:
         latency_ms = round((time.time() - t0) * 1000, 1)
+        point = {
+            "time": get_now_ist().strftime("%H:%M:%S"),
+            "latency": latency_ms,
+            "status": "CRASHED",
+            "code": 0
+        }
+        _server_a_history.append(point)
+        if len(_server_a_history) > 20:
+            _server_a_history = _server_a_history[-20:]
+
         log_security_event("server_a_crash_detected", "critical", f"Server A connection failed / crashed: {str(e)}")
         return jsonify({
             "server_a_status": "CRASHED",
+            "health": "CRITICAL",
+            "badge": "DOWN",
             "crashed": True,
+            "is_slow": False,
             "status_code": 0,
             "latency_ms": latency_ms,
             "main_server_url": MAIN_SERVER_URL,
             "timestamp_ist": get_now_ist().strftime("%d %b %Y, %I:%M:%S %p"),
+            "history": _server_a_history,
             "error": str(e),
-            "message": "🚨 Main Chamber Operations Server A is offline or unreachable!"
+            "message": "🚨 Main Chamber Operations Server A is DOWN / UNREACHABLE! Cyber Sentinel SOC is protecting chamber data."
         }), 200
 
 @app.route('/api/security/database-stats', methods=['GET'])

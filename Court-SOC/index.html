@@ -642,6 +642,212 @@
                 display: block !important;
             }
         }
+
+        /* Server A Live Monitor Card */
+        .server-a-monitor-card {
+            background: linear-gradient(135deg, #071527, #0b223d);
+            border: 2px solid #00f2fe;
+            border-radius: 16px;
+            padding: 24px 28px;
+            margin-bottom: 24px;
+            box-shadow: 0 10px 30px rgba(0, 242, 254, 0.15);
+            position: relative;
+            overflow: hidden;
+        }
+        .server-a-monitor-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 6px;
+            height: 100%;
+            background: #00f2fe;
+            transition: background 0.3s;
+        }
+        .server-a-monitor-card.state-crashed {
+            border-color: #ef4444;
+            box-shadow: 0 10px 30px rgba(239, 68, 68, 0.25);
+        }
+        .server-a-monitor-card.state-crashed::before {
+            background: #ef4444;
+        }
+        .server-a-monitor-card.state-slow {
+            border-color: #f59e0b;
+            box-shadow: 0 10px 30px rgba(245, 158, 11, 0.2);
+        }
+        .server-a-monitor-card.state-slow::before {
+            background: #f59e0b;
+        }
+        .server-a-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-top: 18px;
+        }
+        .server-a-stat-box {
+            background: rgba(6, 14, 26, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .server-a-stat-box .stat-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #94a3b8;
+            font-weight: 700;
+        }
+        .server-a-stat-box .stat-value {
+            font-size: 1.45rem;
+            font-weight: 800;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .server-a-stat-box .stat-sub {
+            font-size: 0.74rem;
+            color: #64748b;
+        }
+        .sparkline-container {
+            display: flex;
+            align-items: flex-end;
+            gap: 5px;
+            height: 48px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            padding: 6px 10px;
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+        .sparkline-bar {
+            flex: 1;
+            min-width: 8px;
+            border-radius: 3px 3px 0 0;
+            transition: height 0.3s ease, background-color 0.3s;
+            position: relative;
+        }
+        .sparkline-bar:hover::after {
+            content: attr(data-tip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #000;
+            color: #fff;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            white-space: nowrap;
+            z-index: 10;
+        }
+        .pulse-indicator {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 10px currentColor;
+        }
+        .pulse-up {
+            background-color: #10b981;
+            color: #10b981;
+            animation: pulseGreen 1.5s infinite;
+        }
+        .pulse-slow {
+            background-color: #f59e0b;
+            color: #f59e0b;
+            animation: pulseYellow 1.5s infinite;
+        }
+        .pulse-down {
+            background-color: #ef4444;
+            color: #ef4444;
+            animation: pulseRed 0.8s infinite;
+        }
+        @keyframes pulseGreen {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+        @keyframes pulseYellow {
+            0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+        }
+        @keyframes pulseRed {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.9); }
+            70% { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        .server-a-alert-box {
+            margin-top: 14px;
+            padding: 12px 18px;
+            background: rgba(239, 68, 68, 0.15);
+            border: 1.5px solid #ef4444;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.88rem;
+            color: #fecaca;
+        }
+
+        /* Security Officer OTP 2FA Overlay */
+        .soc-auth-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at center, rgba(6, 14, 26, 0.98) 0%, rgba(2, 6, 12, 1) 100%);
+            z-index: 99999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            backdrop-filter: blur(12px);
+        }
+        .soc-auth-card {
+            background: linear-gradient(145deg, #0a1728, #050c17);
+            border: 2px solid var(--gold);
+            border-radius: 20px;
+            max-width: 460px;
+            width: 100%;
+            padding: 38px 32px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 35px var(--gold-glow);
+            animation: fadeIn 0.3s ease-out;
+        }
+        .soc-auth-icon {
+            width: 68px;
+            height: 68px;
+            margin: 0 auto 16px auto;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(212, 175, 55, 0.25) 0%, rgba(10, 22, 40, 0.9) 100%);
+            border: 2px solid var(--gold);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            box-shadow: 0 0 20px var(--gold-glow);
+        }
+        .auth-alert {
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 0.82rem;
+            margin-bottom: 16px;
+            text-align: left;
+            line-height: 1.4;
+        }
+        .auth-alert-error {
+            background: rgba(239, 68, 68, 0.18);
+            border: 1px solid #ef4444;
+            color: #fecaca;
+        }
+        .auth-alert-info {
+            background: rgba(0, 242, 254, 0.15);
+            border: 1px solid #00f2fe;
+            color: #bae6fd;
+        }
+
     </style>
 </head>
 <body>
@@ -728,6 +934,10 @@
 
             <div class="header-actions">
                 <!-- Master Public Website Status Pill in Top Header -->
+                <div id="top-server-a-pill" class="status-pill-btn status-pill-live" onclick="probeServerANow()" title="Click to probe Server A in real-time" style="margin-right: 6px;">
+                    <span id="top-server-a-dot" class="pulse-indicator pulse-up" style="width:10px; height:10px; margin-right:4px;"></span>
+                    <span id="top-server-a-text">Server A: UP</span>
+                </div>
                 <div id="top-status-pill" class="status-pill-btn status-pill-live" onclick="toggleWebsiteStatusQuick()" title="Click to instantly toggle Public Website ON / OFF">
                     <span id="top-status-dot">🟢</span>
                     <span id="top-status-text">Public Website: LIVE (ON)</span>
@@ -745,6 +955,72 @@
 
         <!-- Dynamic Content Body -->
         <div class="soc-content">
+
+            <!-- SERVER A LIVE CRASH & LATENCY PULSE CARD -->
+            <div class="server-a-monitor-card" id="server-a-live-card">
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+                    <div style="display: flex; align-items: center; gap: 14px;">
+                        <span id="server-a-pulse-dot" class="pulse-indicator pulse-up" style="width: 20px; height: 20px;"></span>
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                                <h3 style="margin: 0; font-size: 1.22rem; color: #ffffff; font-family: 'Playfair Display', Georgia, serif;">
+                                    🌐 Main Chamber Operations Server A · Live Monitor
+                                </h3>
+                                <span class="badge-soc badge-pass" id="server-a-badge-state">🟢 UP (HEALTHY)</span>
+                            </div>
+                            <p style="margin: 3px 0 0 0; color: #94a3b8; font-size: 0.82rem;">
+                                Live 5-Second Probing Engine · Target: <a href="https://jsm-chamber-cuttack-odisha-30.vercel.app" target="_blank" id="server-a-target-link" style="color: #00f2fe; text-decoration: underline;">https://jsm-chamber-cuttack-odisha-30.vercel.app</a>
+                            </p>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn-soc btn-cyan" onclick="probeServerANow()" style="padding: 7px 16px; font-size: 0.82rem;">
+                            <span>⚡</span> Probe Latency Now
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Live Metrics Grid -->
+                <div class="server-a-grid">
+                    <div class="server-a-stat-box">
+                        <div class="stat-label">RESPONSE LATENCY</div>
+                        <div class="stat-value" id="server-a-latency-val" style="color: #10b981;">-- ms</div>
+                        <div class="stat-sub" id="server-a-latency-sub">⚡ Fast Response (&lt;800ms)</div>
+                    </div>
+                    <div class="server-a-stat-box">
+                        <div class="stat-label">HTTP STATUS</div>
+                        <div class="stat-value" id="server-a-http-code" style="color: #38bdf8;">200 OK</div>
+                        <div class="stat-sub">Heartbeat /api/health</div>
+                    </div>
+                    <div class="server-a-stat-box">
+                        <div class="stat-label">CRASH DETECTOR</div>
+                        <div class="stat-value" id="server-a-crash-status" style="color: #10b981;">ONLINE</div>
+                        <div class="stat-sub" id="server-a-crash-sub">Active &amp; Responsive</div>
+                    </div>
+                    <div class="server-a-stat-box">
+                        <div class="stat-label">LAST PROBE PING</div>
+                        <div class="stat-value" id="server-a-ping-time" style="font-size: 1.05rem; color: #f8fafc;">--:--:--</div>
+                        <div class="stat-sub">Auto-probing every 5s</div>
+                    </div>
+                </div>
+
+                <!-- Latency Sparkline Bar Chart -->
+                <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.06);">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.76rem; color: #94a3b8; margin-bottom: 8px;">
+                        <span>📊 Live Ping Latency History (Last 15 Probes):</span>
+                        <span id="server-a-avg-latency" style="color: #D4AF37; font-weight: 700;">Avg: -- ms</span>
+                    </div>
+                    <div class="sparkline-container" id="server-a-sparkline">
+                        <div style="color: #64748b; font-size: 0.72rem; margin: auto;">Collecting initial latency pulses...</div>
+                    </div>
+                </div>
+
+                <!-- Emergency Alert Notice (Hidden when healthy) -->
+                <div id="server-a-alert-banner" class="server-a-alert-box" style="display: none;">
+                    <span id="server-a-alert-icon" style="font-size: 1.4rem;">🚨</span>
+                    <span id="server-a-alert-text">Server A is unreachable!</span>
+                </div>
+            </div>
 
             <!-- MASTER CYBER LOCKDOWN & REPAIR CARD -->
             <div class="lockdown-master-card">
@@ -1834,7 +2110,11 @@
             if (headerTitle) headerTitle.innerText = titles[secId] || 'Cyber Security Operations Center';
 
             // Load data for section
-            if (secId === 'overview') loadSecurityOverview();
+            if (secId === 'overview') initSocAuth();
+            loadSecurityOverview();
+            probeServerANow();
+            // Continuous 5-second Live Heartbeat Probe for Server A
+            setInterval(probeServerANow, 5000);
             if (secId === 'threats') loadThreats();
             if (secId === 'logins') loadLogins();
             if (secId === 'databases') loadDatabaseSecurityStats();
@@ -2738,7 +3018,263 @@
             }
         }
 
+        
+        // ==========================================
+        //  SERVER A LIVE PROBE & CRASH MONITOR (EVERY 5 SECONDS)
+        // ==========================================
+        let isProbingServerA = false;
+        async function probeServerANow() {
+            if (isProbingServerA) return;
+            isProbingServerA = true;
+            try {
+                const res = await fetch('/api/security/server-a-status?t=' + Date.now());
+                const data = await res.json();
+
+                const card = document.getElementById('server-a-live-card');
+                const pulseDot = document.getElementById('server-a-pulse-dot');
+                const badge = document.getElementById('server-a-badge-state');
+                const latencyVal = document.getElementById('server-a-latency-val');
+                const latencySub = document.getElementById('server-a-latency-sub');
+                const httpCode = document.getElementById('server-a-http-code');
+                const crashStatus = document.getElementById('server-a-crash-status');
+                const crashSub = document.getElementById('server-a-crash-sub');
+                const pingTime = document.getElementById('server-a-ping-time');
+                const alertBanner = document.getElementById('server-a-alert-banner');
+                const alertText = document.getElementById('server-a-alert-text');
+                const alertIcon = document.getElementById('server-a-alert-icon');
+                const topPill = document.getElementById('top-server-a-pill');
+                const topDot = document.getElementById('top-server-a-dot');
+                const topText = document.getElementById('top-server-a-text');
+
+                const lat = data.latency_ms || 0;
+                const status = data.server_a_status || 'ONLINE';
+
+                if (pingTime) pingTime.innerText = new Date().toLocaleTimeString('en-US', { hour12: false });
+                if (httpCode) httpCode.innerText = data.status_code ? `${data.status_code} OK` : '0 ERR';
+
+                if (status === 'ONLINE') {
+                    if (card) { card.className = 'server-a-monitor-card'; }
+                    if (pulseDot) { pulseDot.className = 'pulse-indicator pulse-up'; }
+                    if (badge) { badge.className = 'badge-soc badge-pass'; badge.innerText = '🟢 UP (HEALTHY)'; }
+                    if (latencyVal) { latencyVal.innerText = `${lat} ms`; latencyVal.style.color = '#10b981'; }
+                    if (latencySub) { latencySub.innerText = '⚡ Optimal Response (<800ms)'; }
+                    if (crashStatus) { crashStatus.innerText = 'ONLINE'; crashStatus.style.color = '#10b981'; }
+                    if (crashSub) { crashSub.innerText = 'Fully Operational'; }
+                    if (alertBanner) { alertBanner.style.display = 'none'; }
+                    if (topPill && topDot && topText) {
+                        topPill.className = 'status-pill-btn status-pill-live';
+                        topDot.className = 'pulse-indicator pulse-up';
+                        topText.innerText = `Server A: UP (${lat}ms)`;
+                    }
+                } else if (status === 'SLOW') {
+                    if (card) { card.className = 'server-a-monitor-card state-slow'; }
+                    if (pulseDot) { pulseDot.className = 'pulse-indicator pulse-slow'; }
+                    if (badge) { badge.className = 'badge-soc badge-warning'; badge.innerText = '🟡 SLOW (HIGH LATENCY)'; }
+                    if (latencyVal) { latencyVal.innerText = `${lat} ms`; latencyVal.style.color = '#f59e0b'; }
+                    if (latencySub) { latencySub.innerText = '⚠️ Degraded response (>800ms)'; }
+                    if (crashStatus) { crashStatus.innerText = 'SLOW'; crashStatus.style.color = '#f59e0b'; }
+                    if (crashSub) { crashSub.innerText = 'Experiencing High Latency'; }
+                    if (alertBanner) {
+                        alertBanner.style.display = 'flex';
+                        alertBanner.style.borderColor = '#f59e0b';
+                        alertBanner.style.background = 'rgba(245, 158, 11, 0.15)';
+                        if (alertIcon) alertIcon.innerText = '⚠️';
+                        if (alertText) alertText.innerText = `Server A High Latency Alert: Response time is ${lat}ms. Requests are delayed.`;
+                    }
+                    if (topPill && topDot && topText) {
+                        topPill.className = 'status-pill-btn status-pill-repair';
+                        topDot.className = 'pulse-indicator pulse-slow';
+                        topText.innerText = `Server A: SLOW (${lat}ms)`;
+                    }
+                } else {
+                    // CRASHED / DOWN
+                    if (card) { card.className = 'server-a-monitor-card state-crashed'; }
+                    if (pulseDot) { pulseDot.className = 'pulse-indicator pulse-down'; }
+                    if (badge) { badge.className = 'badge-soc badge-critical'; badge.innerText = '🔴 DOWN / CRASHED'; }
+                    if (latencyVal) { latencyVal.innerText = 'TIMEOUT'; latencyVal.style.color = '#ef4444'; }
+                    if (latencySub) { latencySub.innerText = '❌ Unreachable (HTTP 0)'; }
+                    if (crashStatus) { crashStatus.innerText = 'CRASHED'; crashStatus.style.color = '#ef4444'; }
+                    if (crashSub) { crashSub.innerText = 'Downtime / Connection Refused'; }
+                    if (alertBanner) {
+                        alertBanner.style.display = 'flex';
+                        alertBanner.style.borderColor = '#ef4444';
+                        alertBanner.style.background = 'rgba(239, 68, 68, 0.2)';
+                        if (alertIcon) alertIcon.innerText = '🚨';
+                        if (alertText) alertText.innerText = `🚨 CRITICAL OUTAGE: Main Server A has CRASHED or is offline! Cyber Sentinel SOC is protecting chamber data.`;
+                    }
+                    if (topPill && topDot && topText) {
+                        topPill.className = 'status-pill-btn status-pill-repair';
+                        topDot.className = 'pulse-indicator pulse-down';
+                        topText.innerText = 'Server A: CRASHED';
+                    }
+                }
+
+                // Render Sparkline
+                if (data.history && data.history.length > 0) {
+                    renderLatencySparkline(data.history);
+                }
+            } catch (e) {
+                console.error("Server A probe failed:", e);
+            } finally {
+                isProbingServerA = false;
+            }
+        }
+
+        function renderLatencySparkline(history) {
+            const container = document.getElementById('server-a-sparkline');
+            const avgEl = document.getElementById('server-a-avg-latency');
+            if (!container) return;
+
+            const maxLat = Math.max(1000, ...history.map(h => h.latency || 0));
+            const total = history.reduce((sum, h) => sum + (h.latency || 0), 0);
+            const avg = Math.round(total / (history.length || 1));
+            if (avgEl) avgEl.innerText = `Avg: ${avg} ms`;
+
+            container.innerHTML = history.map(h => {
+                const lat = h.latency || 0;
+                const pct = Math.max(10, Math.min(100, Math.round((lat / maxLat) * 100)));
+                let barColor = '#10b981';
+                if (h.status === 'SLOW') barColor = '#f59e0b';
+                if (h.status === 'CRASHED' || lat === 0) barColor = '#ef4444';
+
+                return `<div class="sparkline-bar" style="height: ${pct}%; background-color: ${barColor};" data-tip="${h.time}: ${lat}ms (${h.status})"></div>`;
+            }).join('');
+        }
+
+        // ==========================================
+        //  SECURITY OFFICER OTP 2FA AUTHENTICATION
+        // ==========================================
+        let authCountdownInterval = null;
+
+        function showAuthAlert(msg, type = 'error') {
+            const box = document.getElementById('auth-alert-box');
+            if (!box) return;
+            box.className = type === 'error' ? 'auth-alert auth-alert-error' : 'auth-alert auth-alert-info';
+            box.innerText = msg;
+            box.style.display = 'block';
+        }
+
+        async function initSocAuth() {
+            const authed = sessionStorage.getItem('soc_officer_authenticated') === 'true';
+            const overlay = document.getElementById('soc-auth-overlay');
+            if (!authed) {
+                if (overlay) overlay.style.display = 'flex';
+                // Fetch officer info
+                try {
+                    const res = await fetch('/api/auth/officer-info');
+                    const data = await res.json();
+                    const disp = document.getElementById('auth-officer-email-display');
+                    if (disp) disp.innerText = data.security_officer_email || 'arnnavpanda@gmail.com';
+                    const sideDisp = document.getElementById('sidebar-officer-email');
+                    if (sideDisp) sideDisp.innerText = data.security_officer_email || 'arnnavpanda@gmail.com';
+                } catch (e) {}
+            } else {
+                if (overlay) overlay.style.display = 'none';
+            }
+        }
+
+        async function requestSocOtp() {
+            const btn = document.getElementById('btn-request-otp');
+            if (btn) { btn.disabled = true; btn.innerText = '⏳ Sending OTP...'; }
+            try {
+                const res = await fetch('/api/auth/send-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    showAuthAlert(data.message, 'info');
+                    document.getElementById('auth-step-1').style.display = 'none';
+                    document.getElementById('auth-step-2').style.display = 'block';
+                    document.getElementById('auth-sent-target-display').innerText = data.target_email_masked || 'your registered email';
+                    startAuthCountdown(data.expires_in_seconds || 300);
+                    setTimeout(() => { document.getElementById('soc-otp-input')?.focus(); }, 300);
+                } else {
+                    showAuthAlert(data.error || 'Failed to send OTP code.', 'error');
+                }
+            } catch (e) {
+                showAuthAlert('Network error while requesting code.', 'error');
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerText = '🔐 Send 2FA Verification Code'; }
+            }
+        }
+
+        async function verifySocOtp() {
+            const input = document.getElementById('soc-otp-input');
+            const code = (input?.value || '').trim();
+            if (code.length !== 6) {
+                showAuthAlert('Please enter all 6 digits of the verification code.', 'error');
+                return;
+            }
+            const btn = document.getElementById('btn-verify-otp');
+            if (btn) { btn.disabled = true; btn.innerText = 'Verifying...'; }
+            try {
+                const res = await fetch('/api/auth/verify-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ otp: code })
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    if (authCountdownInterval) clearInterval(authCountdownInterval);
+                    sessionStorage.setItem('soc_officer_authenticated', 'true');
+                    sessionStorage.setItem('securityOfficerLoggedIn', 'true');
+                    sessionStorage.setItem('officerEmail', data.officer_email || 'arnnavpanda@gmail.com');
+
+                    const sideDisp = document.getElementById('sidebar-officer-email');
+                    if (sideDisp) sideDisp.innerText = data.officer_email || 'arnnavpanda@gmail.com';
+
+                    document.getElementById('soc-auth-overlay').style.display = 'none';
+                    showToast('✅ Identity Verified! Cyber Sentinel SOC Unlocked.', 'success');
+                    loadSecurityOverview();
+                    probeServerANow();
+                } else {
+                    showAuthAlert(data.error || 'Invalid or expired OTP code.', 'error');
+                }
+            } catch (e) {
+                showAuthAlert('Network error during verification.', 'error');
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerText = '✅ Verify & Access SOC'; }
+            }
+        }
+
+        function resetToStep1() {
+            if (authCountdownInterval) clearInterval(authCountdownInterval);
+            document.getElementById('auth-step-2').style.display = 'none';
+            document.getElementById('auth-step-1').style.display = 'block';
+            document.getElementById('soc-otp-input').value = '';
+            document.getElementById('auth-alert-box').style.display = 'none';
+        }
+
+        function startAuthCountdown(seconds) {
+            if (authCountdownInterval) clearInterval(authCountdownInterval);
+            let rem = seconds;
+            const timerEl = document.getElementById('auth-otp-timer');
+            const update = () => {
+                const m = Math.floor(rem / 60);
+                const s = rem % 60;
+                if (timerEl) timerEl.innerText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                if (rem <= 0) {
+                    clearInterval(authCountdownInterval);
+                    showAuthAlert('Verification code expired. Please request a new code.', 'error');
+                }
+                rem--;
+            };
+            update();
+            authCountdownInterval = setInterval(update, 1000);
+        }
+
         function handleLogout() {
+            sessionStorage.removeItem('soc_officer_authenticated');
+            sessionStorage.removeItem('securityOfficerLoggedIn');
+            sessionStorage.removeItem('officerEmail');
+            document.cookie = "security_officer_logged_in=; path=/; max-age=0";
+            resetToStep1();
+            initSocAuth();
+        }
+
+        function handleLogout_old() {
             sessionStorage.removeItem('securityOfficerLoggedIn');
             sessionStorage.removeItem('adminLoggedIn');
             sessionStorage.removeItem('userRole');
@@ -2759,5 +3295,52 @@
             }, 30000);
         });
     </script>
+
+    <!-- SECURITY OFFICER OTP LOGIN OVERLAY -->
+    <div id="soc-auth-overlay" class="soc-auth-overlay" style="display: none;">
+        <div class="soc-auth-card">
+            <div class="soc-auth-icon">🛡️</div>
+            <h2 style="font-family: 'Playfair Display', Georgia, serif; color: #fff; margin: 0 0 6px 0; font-size: 1.45rem;">
+                Cyber Sentinel SOC
+            </h2>
+            <p style="color: #D4AF37; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; margin-bottom: 20px;">
+                Security Officer Authentication
+            </p>
+
+            <div id="auth-alert-box" class="auth-alert" style="display: none;"></div>
+
+            <!-- STEP 1: Request OTP -->
+            <div id="auth-step-1">
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(212,175,55,0.25); border-radius: 10px; padding: 16px; margin-bottom: 20px; text-align: left;">
+                    <div style="font-size: 0.74rem; color: #94a3b8; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Registered Security Officer:</div>
+                    <div style="font-size: 1.05rem; color: #00f2fe; font-weight: 700; word-break: break-all;" id="auth-officer-email-display">Loading...</div>
+                    <div style="font-size: 0.72rem; color: #64748b; margin-top: 4px;">Configured in JSM Chambers Admin Settings</div>
+                </div>
+                <button id="btn-request-otp" class="btn-soc btn-gold" onclick="requestSocOtp()" style="width: 100%; justify-content: center; padding: 13px; font-size: 0.95rem;">
+                    🔐 Send 2FA Verification Code
+                </button>
+            </div>
+
+            <!-- STEP 2: Verify OTP -->
+            <div id="auth-step-2" style="display: none;">
+                <p style="color: #cbd5e1; font-size: 0.86rem; margin-bottom: 14px;">
+                    Enter the 6-digit code sent to <strong style="color: #00f2fe;" id="auth-sent-target-display">your email</strong>:
+                </p>
+                <div style="margin-bottom: 16px;">
+                    <input type="text" id="soc-otp-input" maxlength="6" placeholder="• • • • • •" autocomplete="one-time-code" style="width: 100%; text-align: center; font-size: 2.2rem; letter-spacing: 12px; font-weight: 800; font-family: monospace; background: #050c17; border: 2px solid #D4AF37; border-radius: 10px; color: #fff; padding: 10px;">
+                </div>
+                <div style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 16px;">
+                    ⏱️ Code expires in: <strong id="auth-otp-timer" style="color: #fde047;">05:00</strong>
+                </div>
+                <button id="btn-verify-otp" class="btn-soc btn-gold" onclick="verifySocOtp()" style="width: 100%; justify-content: center; padding: 13px; font-size: 0.95rem; margin-bottom: 10px;">
+                    ✅ Verify &amp; Access SOC
+                </button>
+                <button class="btn-soc btn-outline-soc" onclick="resetToStep1()" style="width: 100%; justify-content: center; font-size: 0.8rem;">
+                    ↺ Request New Code
+                </button>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>
