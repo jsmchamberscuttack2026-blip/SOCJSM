@@ -19,10 +19,28 @@ except ImportError:
     pymongo = None
     certifi = None
 import smtplib
+import socket
+import ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import formatdate, make_msgid
 from dotenv import load_dotenv
+
+class IPv4SMTP(smtplib.SMTP):
+    def _get_socket(self, host, port, timeout):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if timeout is not None and timeout is not socket._GLOBAL_DEFAULT_TIMEOUT:
+            sock.settimeout(timeout)
+        sock.connect((host, port))
+        return sock
+
+class IPv4SMTP_SSL(smtplib.SMTP_SSL):
+    def _get_socket(self, host, port, timeout):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if timeout is not None and timeout is not socket._GLOBAL_DEFAULT_TIMEOUT:
+            sock.settimeout(timeout)
+        sock.connect((host, port))
+        return self.context.wrap_socket(sock, server_hostname=host)
 
 load_dotenv()
 
@@ -303,31 +321,47 @@ def send_soc_otp_email(target_email, otp, expiry_str):
     """
     msg.attach(MIMEText(html, 'html', 'utf-8'))
 
-    # Attempt 1: Port 587 STARTTLS (5s timeout)
+    # Strategy 1: IPv4 SMTP_SSL on Port 465 (Single encrypted handshake, forces IPv4 to avoid Google IPv6 resets)
     try:
-        server = smtplib.SMTP(smtp_host, smtp_port, timeout=5)
-        server.ehlo()
-        server.starttls()
-        server.ehlo()
-        server.login(smtp_user, smtp_password)
-        server.sendmail(smtp_user, [target_email], msg.as_string())
-        server.quit()
-        logging.info(f"SOC OTP email successfully delivered via STARTTLS to {target_email}")
-        return True, "Email sent successfully"
+        with IPv4SMTP_SSL(smtp_host, 465, timeout=7) as server_ssl:
+            server_ssl.login(smtp_user, smtp_password)
+            server_ssl.sendmail(smtp_user, [target_email], msg.as_string())
+        logging.info(f"SOC OTP email successfully delivered via IPv4SMTP_SSL 465 to {target_email}")
+        return True, "Email sent successfully via IPv4 SSL"
     except Exception as e1:
-        logging.warning(f"STARTTLS dispatch failed: {e1}. Retrying via SSL 465...")
+        logging.warning(f"IPv4SMTP_SSL 465 failed: {e1}. Retrying via IPv4SMTP 587...")
 
-    # Attempt 2: Port 465 SSL Fallback (5s timeout)
+    # Strategy 2: IPv4 SMTP on Port 587 with STARTTLS
     try:
-        server_ssl = smtplib.SMTP_SSL(smtp_host, 465, timeout=5)
-        server_ssl.login(smtp_user, smtp_password)
-        server_ssl.sendmail(smtp_user, [target_email], msg.as_string())
-        server_ssl.quit()
-        logging.info(f"SOC OTP email successfully delivered via SSL 465 to {target_email}")
-        return True, "Email sent successfully via SSL fallback"
+        with IPv4SMTP(smtp_host, 587, timeout=7) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(smtp_user, smtp_password)
+            server.sendmail(smtp_user, [target_email], msg.as_string())
+        logging.info(f"SOC OTP email successfully delivered via IPv4SMTP 587 to {target_email}")
+        return True, "Email sent successfully via IPv4 STARTTLS"
     except Exception as e2:
-        logging.error(f"Both SMTP dispatch attempts failed: {e2}")
-        return False, f"SMTP dispatch failed: {e2}"
+        logging.warning(f"IPv4SMTP 587 failed: {e2}. Attempting HTTP relay via Main Chamber Server A...")
+
+    # Strategy 3: HTTP Relay via Server A if Vercel blocks outbound SMTP ports
+    try:
+        relay_url = f"{MAIN_SERVER_URL}/api/internal/send-soc-otp"
+        payload = json.dumps({
+            "secret": "JSM_SOC_INTERNAL_RELAY_2026",
+            "target_email": target_email,
+            "otp": otp,
+            "expiry_str": expiry_str
+        }).encode('utf-8')
+        req = urllib.request.Request(relay_url, data=payload, headers={'Content-Type': 'application/json'}, method='POST')
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            if resp.status == 200:
+                logging.info(f"SOC OTP successfully delivered via Main Server A HTTP relay to {target_email}")
+                return True, "Email delivered via Server A relay"
+    except Exception as e3:
+        logging.error(f"HTTP relay to Server A failed: {e3}")
+
+    return False, f"All dispatch strategies failed. Port 465 SSL: {e1}, Port 587: {e2}"
 
 # =========================================================
 #  SECURITY OFFICER OTP AUTHENTICATION ENDPOINTS
