@@ -994,6 +994,19 @@
 
             <!-- STEP 1: Security Officer Login (ID: JSM, Password: Email) -->
             <div id="auth-step-1">
+                <!-- 5-MINUTE SECURITY TIMEOUT & LOCKOUT BANNER -->
+                <div id="soc-lockout-box" style="display: none; background: linear-gradient(135deg, #450a0a, #7f1d1d); border: 2px solid #ef4444; color: #ffffff; padding: 14px 16px; border-radius: 12px; margin-bottom: 16px; box-shadow: 0 8px 25px rgba(239, 68, 68, 0.4); text-align: center; animation: pulseRed 2s infinite;">
+                    <div style="font-weight: 800; font-size: 0.92rem; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.8px;">
+                        ⏱️ Access Temporarily Restricted
+                    </div>
+                    <p style="margin: 4px 0 8px 0; font-size: 0.8rem; color: #fecaca; line-height: 1.4;">
+                        3 incorrect password attempts detected. Cyber Sentinel SOC is locked for 5 minutes.
+                    </p>
+                    <div id="soc-lockout-timer-display" style="font-size: 1.55rem; font-weight: 800; color: #ffffff; font-family: monospace; letter-spacing: 3px; background: #991b1b; padding: 5px 16px; border-radius: 8px; display: inline-block; border: 1px solid #fca5a5;">
+                        05:00
+                    </div>
+                </div>
+
                 <form id="soc-login-form" onsubmit="event.preventDefault(); submitSocLogin();">
                     <div style="text-align: left; margin-bottom: 14px;">
                         <label style="font-size: 0.78rem; font-weight: 700; color: #cbd5e1; text-transform: uppercase; letter-spacing: 0.8px; display: block; margin-bottom: 6px;">
@@ -4631,12 +4644,80 @@
             if (box) box.style.display = 'none';
         }
 
+        let socLockoutInterval = null;
+        let socLockoutTimeLeft = 0;
+
+        function getSocDeviceId() {
+            let devId = localStorage.getItem('jsm_soc_device_id');
+            if (!devId) {
+                devId = 'soc_dev_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now().toString(36);
+                localStorage.setItem('jsm_soc_device_id', devId);
+            }
+            document.cookie = `jsm_soc_device_id=${encodeURIComponent(devId)}; path=/; max-age=31536000; SameSite=Lax`;
+            return devId;
+        }
+
+        function triggerSocLockdown(seconds = 300) {
+            if (socLockoutInterval) clearInterval(socLockoutInterval);
+            socLockoutTimeLeft = seconds;
+
+            const box = document.getElementById('soc-lockout-box');
+            const display = document.getElementById('soc-lockout-timer-display');
+            const btn = document.getElementById('btn-request-otp');
+            const userIn = document.getElementById('soc-user-id');
+            const passIn = document.getElementById('soc-password');
+
+            if (box) box.style.display = 'block';
+            if (btn) { btn.disabled = true; btn.innerText = '🔒 Access Locked (5 Mins)'; }
+            if (userIn) userIn.disabled = true;
+            if (passIn) passIn.disabled = true;
+
+            const updateUI = () => {
+                const m = Math.floor(socLockoutTimeLeft / 60);
+                const s = socLockoutTimeLeft % 60;
+                if (display) display.innerText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+            };
+            updateUI();
+
+            socLockoutInterval = setInterval(() => {
+                socLockoutTimeLeft--;
+                updateUI();
+                if (socLockoutTimeLeft <= 0) {
+                    clearInterval(socLockoutInterval);
+                    socLockoutInterval = null;
+                    if (box) box.style.display = 'none';
+                    if (btn) { btn.disabled = false; btn.innerText = '🔐 Authenticate & Dispatch 2FA OTP'; }
+                    if (userIn) userIn.disabled = false;
+                    if (passIn) passIn.disabled = false;
+                    showAuthAlert('5-minute lock expired. You may now enter credentials.', 'info');
+                }
+            }, 1000);
+        }
+
+        async function checkSocLockStatus() {
+            const devId = getSocDeviceId();
+            try {
+                const res = await fetch(`/api/auth/lock-status?device_id=${encodeURIComponent(devId)}`, {
+                    headers: { 'X-Device-ID': devId }
+                });
+                const data = await res.json();
+                if (data.locked && data.remaining_seconds > 0) {
+                    triggerSocLockdown(data.remaining_seconds);
+                    return true;
+                }
+            } catch (e) {
+                console.warn('Could not check SOC lock status:', e);
+            }
+            return false;
+        }
+
         async function initSocAuth() {
             const authed = sessionStorage.getItem('soc_officer_authenticated') === 'true';
             const overlay = document.getElementById('soc-auth-overlay');
             if (!authed) {
                 if (overlay) overlay.style.display = 'flex';
                 resetToStep1();
+                checkSocLockStatus();
                 setTimeout(() => { document.getElementById('soc-user-id')?.focus(); }, 200);
             } else {
                 if (overlay) overlay.style.display = 'none';
@@ -4663,15 +4744,23 @@
             const btn = document.getElementById('btn-request-otp');
             if (btn) { btn.disabled = true; btn.innerText = '⏳ Verifying Credentials & Sending OTP...'; }
 
+            const devId = getSocDeviceId();
+
             try {
                 const res = await fetch('/api/auth/send-otp', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: userId, password: password })
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-Device-ID': devId
+                    },
+                    body: JSON.stringify({ user_id: userId, password: password, device_id: devId })
                 });
                 const data = await res.json();
 
-                if (res.ok && data.success) {
+                if (res.status === 423 || data.locked) {
+                    triggerSocLockdown(data.remaining_seconds || data.lockout_remaining_seconds || 300);
+                    showAuthAlert(data.error || 'Access Temporarily Locked: 3 failed password attempts. Cyber Sentinel Dedicated SOC locked for 5 minutes.', 'error');
+                } else if (res.ok && data.success) {
                     showAuthAlert(data.message, 'info');
                     document.getElementById('auth-step-1').style.display = 'none';
                     document.getElementById('auth-step-2').style.display = 'block';
@@ -4685,7 +4774,7 @@
             } catch (e) {
                 showAuthAlert('Network error while authenticating. Please try again.', 'error');
             } finally {
-                if (btn) { btn.disabled = false; btn.innerText = '🔐 Authenticate & Dispatch 2FA OTP'; }
+                if (btn && !socLockoutInterval) { btn.disabled = false; btn.innerText = '🔐 Authenticate & Dispatch 2FA OTP'; }
             }
         }
 

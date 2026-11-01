@@ -209,6 +209,97 @@ def log_security_event(event_type, severity="info", details="", ip="127.0.0.1", 
     except Exception as e:
         logging.error(f"Error logging security event: {e}")
 
+def get_client_ip():
+    if not request:
+        return '127.0.0.1'
+    cf_ip = request.headers.get('CF-Connecting-IP')
+    if cf_ip:
+        return cf_ip.split(',')[0].strip()
+    x_real = request.headers.get('X-Real-IP')
+    if x_real:
+        return x_real.split(',')[0].strip()
+    x_forwarded = request.headers.get('X-Forwarded-For')
+    if x_forwarded:
+        return x_forwarded.split(',')[0].strip()
+    return request.remote_addr or '127.0.0.1'
+
+def get_soc_client_id():
+    dev_id = request.headers.get('X-Device-ID')
+    if not dev_id:
+        dev_id = request.cookies.get('jsm_soc_device_id')
+    if not dev_id:
+        data = request.get_json(force=True, silent=True) or {}
+        dev_id = data.get('device_id')
+    if not dev_id:
+        dev_id = get_client_ip()
+    return str(dev_id or 'default_device')
+
+_soc_lockout_cache = {}
+
+def is_soc_locked(client_id):
+    now_ts = time.time()
+    entry = _soc_lockout_cache.get(client_id)
+    if entry:
+        locked_until = entry.get("locked_until_ts", 0)
+        if locked_until > now_ts:
+            rem = int(locked_until - now_ts)
+            return True, rem, entry
+        elif entry.get("locked_until_ts", 0) > 0:
+            _soc_lockout_cache.pop(client_id, None)
+
+    if db is not None:
+        try:
+            doc = db["soc_lockouts"].find_one({"_id": f"soc_lock_{client_id}"})
+            if doc:
+                locked_until = doc.get("locked_until_timestamp", 0)
+                if locked_until > now_ts:
+                    rem = int(locked_until - now_ts)
+                    _soc_lockout_cache[client_id] = {
+                        "locked_until_ts": locked_until,
+                        "failed_attempts": doc.get("failed_attempts", 3),
+                        "locked_until_iso": doc.get("locked_until_iso")
+                    }
+                    return True, rem, _soc_lockout_cache[client_id]
+        except Exception as e:
+            logging.error(f"Error checking soc_lockouts in mongo: {e}")
+
+    return False, 0, {}
+
+def create_security_incident(title, severity, category, details, ip=None, user_agent="Cyber Sentinel Dedicated SOC"):
+    try:
+        if security_incidents_col is None:
+            return None
+        now_ist = get_now_ist()
+        inc_id = f"INC-{now_ist.year}-{random.randint(1000, 9999)}"
+        inc_doc = {
+            "incident_id": inc_id,
+            "title": title,
+            "severity": severity,
+            "category": category,
+            "status": "open",
+            "detected_at": now_ist.strftime("%d %b %Y, %I:%M %p"),
+            "detected_at_iso": now_ist.isoformat(),
+            "timestamp_epoch": now_ist.timestamp(),
+            "resolved_at": None,
+            "assigned_to": "Security Officer",
+            "details": details,
+            "ip": ip or get_client_ip(),
+            "user_agent": user_agent,
+            "notes": [
+                {
+                    "author": "Sentinel Cyber Engine",
+                    "note": f"Incident recorded: {details}",
+                    "timestamp": now_ist.strftime("%d %b %Y, %I:%M %p")
+                }
+            ]
+        }
+        security_incidents_col.insert_one(inc_doc)
+        log_security_event("incident_created", severity, f"Incident {inc_id} opened: {title}", ip=ip)
+        return inc_id
+    except Exception as e:
+        logging.error(f"Error creating security incident: {e}")
+        return None
+
 # =========================================================
 #  ROUTES & API ENDPOINTS
 # =========================================================
@@ -529,6 +620,17 @@ def get_officer_info():
         "service": "Cyber Sentinel Dedicated SOC"
     }), 200
 
+@app.route('/api/auth/lock-status', methods=['GET'])
+def get_soc_lock_status():
+    client_id = get_soc_client_id()
+    is_locked, rem_secs, lock_doc = is_soc_locked(client_id)
+    return jsonify({
+        "locked": is_locked,
+        "remaining_seconds": rem_secs,
+        "lockout_remaining_seconds": rem_secs,
+        "failed_attempts": lock_doc.get("failed_attempts", 0) if is_locked else 0
+    }), 200
+
 @app.route('/api/auth/send-otp', methods=['POST'])
 @app.route('/api/auth/login', methods=['POST'])
 def send_soc_otp():
@@ -537,14 +639,20 @@ def send_soc_otp():
         user_id = str(data.get("user_id") or data.get("username") or "").strip()
         entered_password = str(data.get("password") or data.get("email") or "").strip().lower()
 
-        # Step 1: Strict Check on User ID: must be JSM
-        if user_id.upper() != "JSM":
-            log_security_event("soc_auth_failed", "warning", f"Security Officer authentication failed: Invalid User ID '{user_id}'.")
-            return jsonify({
-                "error": "Invalid Security Officer ID. Access denied. (Authorized ID: JSM)"
-            }), 401
+        client_id = get_soc_client_id()
+        client_ip = get_client_ip()
 
-        # Step 2: Strict Check on Password: must match the Security Officer email configured by Chamber Admin
+        # Step 0: Check if currently under 5-minute lockout
+        is_locked, rem_secs, lock_doc = is_soc_locked(client_id)
+        if is_locked:
+            return jsonify({
+                "error": f"Access Temporarily Restricted: Too many failed password attempts. Cyber Sentinel Dedicated SOC is locked for 5 minutes ({rem_secs}s remaining).",
+                "locked": True,
+                "remaining_seconds": rem_secs,
+                "lockout_remaining_seconds": rem_secs,
+                "failed_attempts": 3
+            }), 423
+
         target_email = get_security_officer_email().strip().lower()
         if not target_email:
             log_security_event("soc_auth_blocked", "critical", "Security Officer login attempted but no Security Officer email is configured in Chamber Admin Settings.")
@@ -552,11 +660,82 @@ def send_soc_otp():
                 "error": "Access Denied: No Security Officer email has been configured by Chamber Admin in Settings."
             }), 403
 
-        if entered_password != target_email:
-            log_security_event("soc_auth_failed", "warning", f"Security Officer authentication failed: Email/Password '{entered_password}' does not match registered Security Officer.")
-            return jsonify({
-                "error": "Authentication failed: Password does not match the registered Security Officer email address configured by Chamber Admin."
-            }), 403
+        # Validate User ID and Password
+        valid_id = (user_id.upper() == "JSM")
+        valid_pass = (entered_password == target_email)
+
+        if not valid_id or not valid_pass:
+            # Increment failed attempts
+            entry = _soc_lockout_cache.get(client_id, {"failed_attempts": 0})
+            fails = int(entry.get("failed_attempts", 0)) + 1
+            entry["failed_attempts"] = fails
+            _soc_lockout_cache[client_id] = entry
+
+            now_ist = get_now_ist()
+            now_ts = time.time()
+
+            if fails >= 3:
+                locked_until_ts = now_ts + 300 # 5 minutes
+                locked_until_dt = now_ist + timedelta(minutes=5)
+                locked_until_iso = locked_until_dt.isoformat()
+                expiry_str = locked_until_dt.strftime("%I:%M %p")
+
+                entry["locked_until_ts"] = locked_until_ts
+                entry["locked_until_iso"] = locked_until_iso
+                _soc_lockout_cache[client_id] = entry
+
+                if db is not None:
+                    try:
+                        db["soc_lockouts"].update_one(
+                            {"_id": f"soc_lock_{client_id}"},
+                            {"$set": {
+                                "client_id": client_id,
+                                "failed_attempts": fails,
+                                "locked_until_timestamp": locked_until_ts,
+                                "locked_until_iso": locked_until_iso,
+                                "ip": client_ip,
+                                "locked_at": now_ist.isoformat()
+                            }},
+                            upsert=True
+                        )
+                    except Exception as e:
+                        logging.error(f"Error saving soc_lockouts: {e}")
+
+                log_security_event("soc_account_locked", "critical", f"CRITICAL: 3 failed password attempts in Cyber Sentinel SOC from IP {client_ip}. 5-minute security lock engaged.", ip=client_ip, user=user_id or "Anonymous")
+
+                create_security_incident(
+                    title=f"Cyber Sentinel SOC Lockout: 3 Failed Password Attempts from IP {client_ip}",
+                    severity="critical",
+                    category="Brute Force",
+                    details=f"3 consecutive incorrect password attempts for Cyber Sentinel Dedicated SOC. Automated 5-minute security lock applied.",
+                    ip=client_ip
+                )
+
+                return jsonify({
+                    "error": "Access Temporarily Locked: 3 consecutive wrong password attempts. Cyber Sentinel Dedicated SOC is locked for 5 minutes.",
+                    "locked": True,
+                    "failed_attempts": 3,
+                    "remaining_seconds": 300,
+                    "lockout_remaining_seconds": 300,
+                    "locked_until": expiry_str
+                }), 423
+            else:
+                remaining = 3 - fails
+                log_security_event("soc_auth_failed", "warning", f"Security Officer authentication failed: Wrong password attempt {fails} of 3 from IP {client_ip}.", ip=client_ip, user=user_id or "Anonymous")
+                return jsonify({
+                    "error": f"Invalid password. Attempt {fails} of 3. (3 failed attempts will trigger a 5-minute security lock).",
+                    "locked": False,
+                    "failed_attempts": fails,
+                    "remaining_attempts": remaining
+                }), 401
+
+        # Successful credentials: reset failed attempts
+        _soc_lockout_cache.pop(client_id, None)
+        if db is not None:
+            try:
+                db["soc_lockouts"].delete_one({"_id": f"soc_lock_{client_id}"})
+            except Exception:
+                pass
 
         # Both ID 'JSM' and registered Security Officer Email match strictly!
         # Now generate the 6-digit OTP and send to that exact email:
