@@ -800,6 +800,16 @@
             70% { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
             100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
         }
+        @keyframes serverDownFlash {
+            0% {
+                background: linear-gradient(135deg, #7f1d1d, #ef4444);
+                box-shadow: 0 10px 40px rgba(239, 68, 68, 0.7);
+            }
+            100% {
+                background: linear-gradient(135deg, #450a0a, #991b1b);
+                box-shadow: 0 10px 50px rgba(239, 68, 68, 0.95);
+            }
+        }
         .server-a-alert-box {
             margin-top: 14px;
             padding: 12px 18px;
@@ -922,6 +932,29 @@
     </script>
 </head>
 <body>
+
+    <!-- CRITICAL EMERGENCY SERVER DOWN ALARM BANNER SHOW -->
+    <div id="server-down-alarm-show" style="display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 99999999; background: linear-gradient(135deg, #7f1d1d, #ef4444); color: #ffffff; padding: 14px 24px; box-shadow: 0 10px 40px rgba(239, 68, 68, 0.7); border-bottom: 3px solid #ffffff; animation: serverDownFlash 1s infinite alternate; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+            <div style="font-size: 30px; animation: pulseRed 0.8s infinite;">🚨</div>
+            <div>
+                <div style="font-size: 1.15rem; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; text-shadow: 0 2px 8px rgba(0,0,0,0.5);">
+                    CRITICAL ALARM: SERVER DOWN! SERVER DOWN!
+                </div>
+                <div style="font-size: 0.82rem; color: #fee2e2; margin-top: 2px;">
+                    Main Chamber Operations Server A is unreachable · Cyber Sentinel SOC Emergency Warning Activated
+                </div>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <button onclick="toggleAlertSound()" style="background: rgba(0,0,0,0.45); border: 1.5px solid #ffffff; color: #ffffff; padding: 7px 16px; border-radius: 8px; font-weight: 800; font-size: 0.82rem; cursor: pointer; transition: all 0.2s;">
+                🔇 Mute Alarm
+            </button>
+            <button onclick="probeServerANow()" style="background: #ffffff; color: #991b1b; border: none; padding: 7px 18px; border-radius: 8px; font-weight: 900; font-size: 0.82rem; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3); transition: all 0.2s;">
+                🔄 Re-Probe Now
+            </button>
+        </div>
+    </div>
 
     <!-- COMPULSORY SECURITY OFFICER LOGIN (NO LOGIN, NO DASHBOARD) -->
     <div id="soc-login-screen">
@@ -4029,16 +4062,51 @@
             }
         }
 
+        function speakServerDownVoice() {
+            if (!isAlarmSoundEnabled) return;
+            try {
+                if ('speechSynthesis' in window) {
+                    window.speechSynthesis.cancel();
+                    const utterance = new SpeechSynthesisUtterance("Server down! Server down!");
+                    utterance.rate = 1.05;
+                    utterance.pitch = 1.05;
+                    utterance.volume = 1.0;
+                    utterance.lang = 'en-US';
+                    window.speechSynthesis.speak(utterance);
+                }
+            } catch (err) {
+                console.warn('Voice speech warning notice:', err);
+            }
+        }
+
         function startServerDownAlarmLoop() {
+            // Show critical visual alarm banner show
+            const alarmShow = document.getElementById('server-down-alarm-show');
+            if (alarmShow) alarmShow.style.display = 'flex';
+
             if (serverDownAlarmInterval) return;
+
+            // Trigger siren and "Server down! Server down!" voice immediately
             playCyberAlertSiren();
-            // Repeat warning siren every 8 seconds while server remains down
+            setTimeout(() => { speakServerDownVoice(); }, 350);
+
+            // Repeat emergency siren + voice announcement every 6 seconds while server remains down
             serverDownAlarmInterval = setInterval(() => {
+                if (!isAlarmSoundEnabled) return;
                 playCyberAlertSiren();
-            }, 8000);
+                setTimeout(() => { speakServerDownVoice(); }, 350);
+            }, 6000);
         }
 
         function stopServerDownAlarmLoop() {
+            // Hide critical visual alarm banner show
+            const alarmShow = document.getElementById('server-down-alarm-show');
+            if (alarmShow) alarmShow.style.display = 'none';
+
+            if ('speechSynthesis' in window) {
+                try { window.speechSynthesis.cancel(); } catch (e) {}
+            }
+
             if (serverDownAlarmInterval) {
                 clearInterval(serverDownAlarmInterval);
                 serverDownAlarmInterval = null;
@@ -4056,14 +4124,15 @@
                 if (icon) icon.innerText = '🔊';
                 if (text) text.innerText = 'Alarm: ACTIVE';
                 if (pill) pill.className = 'status-pill-btn status-pill-live';
-                showToast('🚨 Outage Alarm Siren is now ACTIVE (Will sound if server goes down)', 'info');
+                showToast('🚨 Outage Alarm & Voice Warning are now ACTIVE', 'info');
                 playCyberAlertSiren(); // Quick audible verification chirp
+                setTimeout(() => { speakServerDownVoice(); }, 350);
             } else {
                 if (icon) icon.innerText = '🔇';
                 if (text) text.innerText = 'Alarm: MUTED';
                 if (pill) pill.className = 'status-pill-btn status-pill-repair';
                 stopServerDownAlarmLoop();
-                showToast('🔇 Outage Alarm Siren has been MUTED', 'warning');
+                showToast('🔇 Outage Alarm & Voice Warning have been MUTED', 'warning');
             }
         }
 
