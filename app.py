@@ -5,11 +5,11 @@ import json
 import random
 import logging
 from datetime import datetime, timezone, timedelta
+from flask import Flask, request, jsonify, send_from_directory, Response
 try:
     import requests
 except ImportError:
     requests = None
-import urllib.request
 import urllib.error
 import pymongo
 import certifi
