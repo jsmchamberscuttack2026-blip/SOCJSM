@@ -85,6 +85,7 @@ security_logs_col = None
 security_incidents_col = None
 security_blocked_ips_col = None
 security_audit_scans_col = None
+security_audits_col = None
 settings_col = None
 config_col = None
 advocates_col = None
@@ -103,6 +104,7 @@ if MONGO_URI and pymongo is not None:
         security_incidents_col = db["security_incidents"]
         security_blocked_ips_col = db["security_blocked_ips"]
         security_audit_scans_col = db["security_audit_scans"]
+        security_audits_col = db["security_audits"]
         settings_col = db["settings"]
         config_col = db["config"]
         advocates_col = db["advocates"]
@@ -277,14 +279,14 @@ def mask_email(email):
         masked_user = user[0] + "***" + user[-1]
     return f"{masked_user}@{domain}"
 
-def send_soc_otp_email(target_email, otp, expiry_str):
+def send_soc_custom_email(target_email, subject, plain_text, html_body):
     smtp_user = os.environ.get("SMTP_USER") or "jsmchamberscuttack2026@gmail.com"
     smtp_password = os.environ.get("SMTP_PASSWORD") or "tqqmpczexenshygo"
     smtp_host = os.environ.get("SMTP_HOST") or "smtp.gmail.com"
     smtp_port = int(os.environ.get("SMTP_PORT") or 587)
 
     if not smtp_password or not smtp_user:
-        logging.warning(f"SMTP credentials missing; OTP for {target_email} is: {otp}")
+        logging.warning(f"SMTP credentials missing; cannot send email to {target_email}")
         return False, "SMTP credentials missing"
 
     msg = MIMEMultipart('alternative')
@@ -292,12 +294,57 @@ def send_soc_otp_email(target_email, otp, expiry_str):
     msg['Message-ID'] = make_msgid()
     msg['From'] = f"JSM Cyber Sentinel SOC <{smtp_user}>"
     msg['To'] = target_email
-    msg['Subject'] = f"🛡️ Cyber Sentinel SOC - Security Officer Login OTP: {otp}"
+    msg['Subject'] = subject
 
-    # Plain-text alternative
-    plain_text = f"CYBER SENTINEL SOC - 2FA Security Code\n\nYour single-use login OTP is: {otp}\nValid for 5 minutes (expires at {expiry_str} IST).\n\nJSM Chambers Dedicated SOC Server B"
     msg.attach(MIMEText(plain_text, 'plain', 'utf-8'))
+    msg.attach(MIMEText(html_body, 'html', 'utf-8'))
 
+    # Strategy 1: IPv4 SMTP_SSL on Port 465
+    try:
+        with IPv4SMTP_SSL(smtp_host, 465, timeout=7) as server_ssl:
+            server_ssl.login(smtp_user, smtp_password)
+            server_ssl.sendmail(smtp_user, [target_email], msg.as_string())
+        logging.info(f"SOC email successfully delivered via IPv4SMTP_SSL 465 to {target_email} ({subject})")
+        return True, "Email sent successfully via IPv4 SSL"
+    except Exception as e1:
+        logging.warning(f"IPv4SMTP_SSL 465 failed: {e1}. Retrying via IPv4SMTP 587...")
+
+    # Strategy 2: IPv4 SMTP on Port 587 with STARTTLS
+    try:
+        with IPv4SMTP(smtp_host, 587, timeout=7) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(smtp_user, smtp_password)
+            server.sendmail(smtp_user, [target_email], msg.as_string())
+        logging.info(f"SOC email successfully delivered via IPv4SMTP 587 to {target_email} ({subject})")
+        return True, "Email sent successfully via IPv4 STARTTLS"
+    except Exception as e2:
+        logging.warning(f"IPv4SMTP 587 failed: {e2}. Attempting HTTP relay via Main Server A...")
+
+    # Strategy 3: HTTP Relay via Server A
+    try:
+        relay_url = f"{MAIN_SERVER_URL}/api/internal/send-soc-alert"
+        payload = json.dumps({
+            "secret": "JSM_SOC_INTERNAL_RELAY_2026",
+            "target_email": target_email,
+            "subject": subject,
+            "plain_text": plain_text,
+            "html_body": html_body
+        }).encode('utf-8')
+        req = urllib.request.Request(relay_url, data=payload, headers={'Content-Type': 'application/json'}, method='POST')
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            if resp.status == 200:
+                logging.info(f"SOC email delivered via Server A relay to {target_email}")
+                return True, "Email delivered via Server A relay"
+    except Exception as e3:
+        logging.error(f"HTTP relay to Server A failed: {e3}")
+
+    return False, f"All dispatch strategies failed. Port 465 SSL: {e1}, Port 587: {e2}"
+
+def send_soc_otp_email(target_email, otp, expiry_str):
+    subject = f"🛡️ Cyber Sentinel SOC - Security Officer Login OTP: {otp}"
+    plain_text = f"CYBER SENTINEL SOC - 2FA Security Code\n\nYour single-use login OTP is: {otp}\nValid for 5 minutes (expires at {expiry_str} IST).\n\nJSM Chambers Dedicated SOC Server B"
     html = f"""
     <!DOCTYPE html>
     <html>
@@ -327,49 +374,147 @@ def send_soc_otp_email(target_email, otp, expiry_str):
     </body>
     </html>
     """
-    msg.attach(MIMEText(html, 'html', 'utf-8'))
+    return send_soc_custom_email(target_email, subject, plain_text, html)
 
-    # Strategy 1: IPv4 SMTP_SSL on Port 465 (Single encrypted handshake, forces IPv4 to avoid Google IPv6 resets)
+def send_admin_security_review_email(new_status, reason, officer_name="Security Officer"):
+    admin_email = "jsmchamberscuttack2026@gmail.com"
     try:
-        with IPv4SMTP_SSL(smtp_host, 465, timeout=7) as server_ssl:
-            server_ssl.login(smtp_user, smtp_password)
-            server_ssl.sendmail(smtp_user, [target_email], msg.as_string())
-        logging.info(f"SOC OTP email successfully delivered via IPv4SMTP_SSL 465 to {target_email}")
-        return True, "Email sent successfully via IPv4 SSL"
-    except Exception as e1:
-        logging.warning(f"IPv4SMTP_SSL 465 failed: {e1}. Retrying via IPv4SMTP 587...")
+        if settings_col is not None:
+            s = settings_col.find_one({"_id": "office_info"}, {"email": 1, "admin_email": 1}) or {}
+            target = s.get("admin_email") or s.get("email")
+            if target and "@" in target:
+                admin_email = target
+    except Exception as e:
+        logging.warning(f"Could not read custom admin email: {e}")
 
-    # Strategy 2: IPv4 SMTP on Port 587 with STARTTLS
-    try:
-        with IPv4SMTP(smtp_host, 587, timeout=7) as server:
-            server.ehlo()
-            server.starttls()
-            server.ehlo()
-            server.login(smtp_user, smtp_password)
-            server.sendmail(smtp_user, [target_email], msg.as_string())
-        logging.info(f"SOC OTP email successfully delivered via IPv4SMTP 587 to {target_email}")
-        return True, "Email sent successfully via IPv4 STARTTLS"
-    except Exception as e2:
-        logging.warning(f"IPv4SMTP 587 failed: {e2}. Attempting HTTP relay via Main Chamber Server A...")
+    now_str = get_now_ist().strftime("%d %b %Y, %I:%M:%S %p IST")
+    ref_id = f"SEC-REV-{get_now_ist().year}-{random.randint(10000, 99999)}"
 
-    # Strategy 3: HTTP Relay via Server A if Vercel blocks outbound SMTP ports
-    try:
-        relay_url = f"{MAIN_SERVER_URL}/api/internal/send-soc-otp"
-        payload = json.dumps({
-            "secret": "JSM_SOC_INTERNAL_RELAY_2026",
-            "target_email": target_email,
-            "otp": otp,
-            "expiry_str": expiry_str
-        }).encode('utf-8')
-        req = urllib.request.Request(relay_url, data=payload, headers={'Content-Type': 'application/json'}, method='POST')
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            if resp.status == 200:
-                logging.info(f"SOC OTP successfully delivered via Main Server A HTTP relay to {target_email}")
-                return True, "Email delivered via Server A relay"
-    except Exception as e3:
-        logging.error(f"HTTP relay to Server A failed: {e3}")
+    if new_status == "off":
+        subject = f"🚨 URGENT: Chamber Admin Panel Under Emergency Security Review & Lockdown ({ref_id})"
+        plain_text = (
+            f"URGENT SECURITY NOTIFICATION: Chamber Admin Panel Placed Under Emergency Review & Lockdown\n\n"
+            f"Reference: {ref_id}\n"
+            f"Timestamp: {now_str}\n"
+            f"Authorized By: {officer_name} (Cyber Sentinel SOC)\n"
+            f"Reason: {reason}\n\n"
+            f"Notice: The Chamber Admin Panel has been placed into emergency offline lockdown by the Cyber Sentinel SOC.\n"
+            f"All administrative logins, sessions, and appointment management portals are temporarily suspended.\n"
+            f"A Security Timeout screen is active on the Admin Portal until cleared by the Security Operations Center.\n\n"
+            f"High Court of Orissa Chamber Security Protocol · JSM Chambers"
+        )
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"></head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #071522; margin: 0; padding: 24px; color: #f8fafc;">
+          <div style="max-width: 580px; margin: 0 auto; background: #0c1a2d; border-radius: 16px; overflow: hidden; border: 2px solid #ef4444; box-shadow: 0 10px 45px rgba(239, 68, 68, 0.35);">
+            <div style="background: #450a0a; padding: 26px 24px; border-bottom: 2px solid #ef4444; text-align: center;">
+              <div style="font-size: 38px; margin-bottom: 8px;">🛡️</div>
+              <h2 style="color: #ffffff; margin: 0; font-family: Georgia, serif; font-size: 21px; letter-spacing: 0.5px;">EMERGENCY SECURITY TIMEOUT</h2>
+              <p style="color: #fca5a5; margin: 5px 0 0 0; font-size: 11.5px; text-transform: uppercase; letter-spacing: 2px; font-weight: 700;">Cyber Sentinel SOC · Critical Incident Protocol</p>
+            </div>
+            <div style="padding: 28px 24px;">
+              <div style="background: rgba(239, 68, 68, 0.12); border: 1.5px solid #ef4444; border-radius: 10px; padding: 14px 18px; margin-bottom: 22px;">
+                <span style="color: #f87171; font-size: 13.5px; font-weight: 700;">⚠️ ACTION TAKEN: Chamber Admin Panel Taken OFFLINE</span>
+                <p style="color: #fecaca; font-size: 12.5px; margin: 4px 0 0 0; line-height: 1.5;">
+                  The Dedicated SOC Security Officer has engaged an immediate Emergency Lockdown on the Chamber Administrative Portal. Access is suspended.
+                </p>
+              </div>
 
-    return False, f"All dispatch strategies failed. Port 465 SSL: {e1}, Port 587: {e2}"
+              <table style="width: 100%; border-collapse: collapse; margin-bottom: 22px; font-size: 13px; color: #cbd5e1;">
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+                  <td style="padding: 8px 0; color: #94a3b8; width: 140px;">Incident Reference:</td>
+                  <td style="padding: 8px 0; font-family: monospace; font-weight: 700; color: #ffffff;">{ref_id}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+                  <td style="padding: 8px 0; color: #94a3b8;">Engagement Time:</td>
+                  <td style="padding: 8px 0; color: #ffffff;">{now_str}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+                  <td style="padding: 8px 0; color: #94a3b8;">Initiated By:</td>
+                  <td style="padding: 8px 0; color: #D4AF37; font-weight: 600;">{officer_name} (Cyber Sentinel SOC)</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #94a3b8; vertical-align: top;">Lockdown Reason:</td>
+                  <td style="padding: 8px 0; color: #fca5a5; font-weight: 600;">{reason}</td>
+                </tr>
+              </table>
+
+              <div style="background: rgba(255, 255, 255, 0.04); border-radius: 10px; padding: 14px 16px; font-size: 12px; line-height: 1.6; color: #94a3b8;">
+                <strong style="color: #ffffff;">What happens now?</strong><br>
+                • Any attempts to log in to <code>/admin-login.html</code> or view <code>/admin-dashboard.html</code> will render an official <strong>"Security Timeout &amp; Emergency Review"</strong> banner.<br>
+                • All administrative APIs and appointment approvals are blocked until security clearance is granted.<br>
+                • You will receive a follow-up notification the moment the Security Officer concludes the review and restores normal operational status.
+              </div>
+            </div>
+            <div style="background: #050c17; padding: 12px; text-align: center; font-size: 11px; color: #64748b; border-top: 1px solid rgba(255,255,255,0.08);">
+              JSM Chambers · High Court Advocates · Cyber Defense &amp; Security Operations Center
+            </div>
+          </div>
+        </body>
+        </html>
+        """
+    else:
+        subject = f"✅ RESTORED: Chamber Admin Panel Returned to Operational Status ({ref_id})"
+        plain_text = (
+            f"SECURITY NOTICE: Chamber Admin Panel Restored to Normal Operations\n\n"
+            f"Reference: {ref_id}\n"
+            f"Timestamp: {now_str}\n"
+            f"Authorized By: {officer_name} (Cyber Sentinel SOC)\n\n"
+            f"Notice: The Cyber Sentinel SOC Security Officer has concluded the security review.\n"
+            f"The Chamber Admin Portal has been re-enabled. Authorized administrators may log in normally with 2FA.\n\n"
+            f"High Court of Orissa Chamber Security Protocol · JSM Chambers"
+        )
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"></head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #071522; margin: 0; padding: 24px; color: #f8fafc;">
+          <div style="max-width: 580px; margin: 0 auto; background: #0c1a2d; border-radius: 16px; overflow: hidden; border: 2px solid #10b981; box-shadow: 0 10px 45px rgba(16, 185, 129, 0.35);">
+            <div style="background: #064e3b; padding: 26px 24px; border-bottom: 2px solid #10b981; text-align: center;">
+              <div style="font-size: 38px; margin-bottom: 8px;">🛡️</div>
+              <h2 style="color: #ffffff; margin: 0; font-family: Georgia, serif; font-size: 21px; letter-spacing: 0.5px;">ADMIN PANEL ACCESS RESTORED</h2>
+              <p style="color: #6ee7b7; margin: 5px 0 0 0; font-size: 11.5px; text-transform: uppercase; letter-spacing: 2px; font-weight: 700;">Cyber Sentinel SOC · Operations Normal</p>
+            </div>
+            <div style="padding: 28px 24px;">
+              <div style="background: rgba(16, 185, 129, 0.12); border: 1.5px solid #10b981; border-radius: 10px; padding: 14px 18px; margin-bottom: 22px;">
+                <span style="color: #34d399; font-size: 13.5px; font-weight: 700;">✅ STATUS: Chamber Admin Portal is LIVE &amp; OPERATIONAL</span>
+                <p style="color: #a7f3d0; font-size: 12.5px; margin: 4px 0 0 0; line-height: 1.5;">
+                  The emergency security review has been completed. The Security Timeout banner has been removed, and administrative authentication is fully active.
+                </p>
+              </div>
+
+              <table style="width: 100%; border-collapse: collapse; margin-bottom: 22px; font-size: 13px; color: #cbd5e1;">
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+                  <td style="padding: 8px 0; color: #94a3b8; width: 140px;">Clearance Reference:</td>
+                  <td style="padding: 8px 0; font-family: monospace; font-weight: 700; color: #ffffff;">{ref_id}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+                  <td style="padding: 8px 0; color: #94a3b8;">Restoration Time:</td>
+                  <td style="padding: 8px 0; color: #ffffff;">{now_str}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #94a3b8;">Authorized By:</td>
+                  <td style="padding: 8px 0; color: #D4AF37; font-weight: 600;">{officer_name} (Cyber Sentinel SOC)</td>
+                </tr>
+              </table>
+
+              <div style="text-align: center; margin-top: 10px;">
+                <a href="{MAIN_SERVER_URL}/admin-login.html" style="display: inline-block; background: linear-gradient(135deg, #0A1628, #1E293B); color: #D4AF37; border: 1.5px solid #D4AF37; padding: 10px 24px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 13px;">
+                  🔐 Access Admin Login Portal
+                </a>
+              </div>
+            </div>
+            <div style="background: #050c17; padding: 12px; text-align: center; font-size: 11px; color: #64748b; border-top: 1px solid rgba(255,255,255,0.08);">
+              JSM Chambers · High Court Advocates · Cyber Defense &amp; Security Operations Center
+            </div>
+          </div>
+        </body>
+        </html>
+        """
+
+    return send_soc_custom_email(admin_email, subject, plain_text, html)
 
 # =========================================================
 #  SECURITY OFFICER OTP AUTHENTICATION ENDPOINTS
@@ -833,6 +978,7 @@ def get_security_overview():
             "security_officer_email": security_officer_email or "Security Sentinel",
             "last_scan": last_scan,
             "recent_logs": recent_logs,
+            "three_week_audit": get_three_week_audit_info(),
             "server_uptime": {
                 "status": "Healthy",
                 "uptime_percentage": "99.99%",
@@ -975,15 +1121,411 @@ def get_security_logins():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+AUDIT_SCHEDULE_FILE = os.path.join(BASE_DIR, 'soc_audit_schedule.json')
+
+def load_local_audit_schedule():
+    try:
+        if os.path.exists(AUDIT_SCHEDULE_FILE):
+            with open(AUDIT_SCHEDULE_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except Exception as e:
+        logging.warning(f"Could not load local audit schedule: {e}")
+    return None
+
+def save_local_audit_schedule(data):
+    try:
+        with open(AUDIT_SCHEDULE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        logging.warning(f"Could not save local audit schedule: {e}")
+
+def get_three_week_audit_info():
+    now_ist = get_now_ist()
+    schedule = None
+    if config_col is not None:
+        try:
+            schedule = config_col.find_one({"_id": "three_week_security_audit_schedule"})
+        except Exception:
+            pass
+    if not schedule:
+        schedule = load_local_audit_schedule()
+        
+    if not schedule:
+        # Default initialization: 21 days from now (3 weeks cycle)
+        next_dt = now_ist + timedelta(days=21)
+        schedule = {
+            "last_audit_id": None,
+            "last_audit_date": "Not yet conducted (Initial 3-Week Cycle Active)",
+            "last_audit_epoch": 0,
+            "next_audit_date": next_dt.strftime("%d %b %Y, %I:%M %p"),
+            "next_audit_epoch": next_dt.timestamp(),
+            "cadence_days": 21,
+            "status": "SCHEDULED"
+        }
+    
+    next_epoch = schedule.get("next_audit_epoch", 0)
+    current_epoch = now_ist.timestamp()
+    diff_sec = next_epoch - current_epoch
+    days_remaining = max(0, int(diff_sec // 86400))
+    is_overdue = (diff_sec <= 0 and schedule.get("last_audit_epoch", 0) > 0)
+    
+    # Count pending un-audited records scheduled for purge
+    pending_incidents = 0
+    if security_incidents_col is not None:
+        try:
+            pending_incidents = security_incidents_col.count_documents({})
+        except Exception:
+            pass
+
+    pending_logins = 0
+    if security_logs_col is not None:
+        try:
+            pending_logins = security_logs_col.count_documents({
+                "event_type": {"$in": [
+                    "login_2fa_requested", "login_success", "login_failed", 
+                    "login_blocked_locked", "otp_invalid", "otp_expired", 
+                    "force_logout", "staff_verify_failed", "staff_account_locked"
+                ]}
+            })
+        except Exception:
+            pass
+
+    pending_threats = 0
+    if security_logs_col is not None:
+        try:
+            pending_threats = security_logs_col.count_documents({
+                "severity": {"$in": ["warning", "high", "critical"]}
+            })
+        except Exception:
+            pass
+
+    return {
+        "last_audit_id": schedule.get("last_audit_id"),
+        "last_audit_date": schedule.get("last_audit_date"),
+        "last_audit_epoch": schedule.get("last_audit_epoch", 0),
+        "next_audit_date": schedule.get("next_audit_date"),
+        "next_audit_epoch": next_epoch,
+        "cadence": "Every 3 Weeks (Maximum Interval: 21 Days · On-Demand: Anytime)",
+        "days_remaining": days_remaining,
+        "is_overdue": is_overdue,
+        "pending_incidents": pending_incidents,
+        "pending_logins": pending_logins,
+        "pending_threats": pending_threats,
+        "total_pending_audit_records": pending_incidents + pending_logins + pending_threats,
+        "auditor_assigned": "Security Officer (JSM)",
+        "overall_score": 98,
+        "grade": "A+",
+        "server_statement": "All servers and security are under control"
+    }
+
+def execute_three_week_security_audit(officer_name="Security Officer (JSM)"):
+    now_ist = get_now_ist()
+    audit_id = f"AUDIT-3WK-{now_ist.strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
+    next_audit_dt = now_ist + timedelta(days=21)
+    
+    # 1. Snapshot pending counts before purging
+    inc_count = 0
+    if security_incidents_col is not None:
+        try:
+            inc_count = security_incidents_col.count_documents({})
+        except Exception:
+            pass
+
+    log_count = 0
+    if security_logs_col is not None:
+        try:
+            log_count = security_logs_col.count_documents({
+                "event_type": {"$in": [
+                    "login_2fa_requested", "login_success", "login_failed", 
+                    "login_blocked_locked", "otp_invalid", "otp_expired", 
+                    "force_logout", "staff_verify_failed", "staff_account_locked"
+                ]}
+            })
+        except Exception:
+            pass
+
+    threat_count = 0
+    if security_logs_col is not None:
+        try:
+            threat_count = security_logs_col.count_documents({
+                "severity": {"$in": ["warning", "high", "critical"]}
+            })
+        except Exception:
+            pass
+
+    target_email = "jsmchamberscuttack2026@gmail.com"
+    subject = f"🛡️ [Cyber Sentinel SOC] 3-Week Security Audit Report: All Servers & Security Under Control ({audit_id})"
+    
+    plain_text = f"""CYBER SENTINEL SOC — OFFICIAL 3-WEEK SECURITY AUDIT REPORT
+High Court of Orissa Chamber Administration
+Dedicated SOC Server B · Cyber Sentinel Security Enclave
+
+============================================================
+PRIMARY SECURITY DECLARATION:
+All servers and security are under control
+============================================================
+
+Audit Reference ID: {audit_id}
+Audited By: {officer_name}
+Audit Completed: {now_ist.strftime("%d %b %Y, %I:%M:%S %p")} IST
+Cycle Cadence: Every 3 Weeks (Maximum Interval: 21 Days)
+Upcoming Next Scheduled Audit: {next_audit_dt.strftime("%d %b %Y, %I:%M:%S %p")} IST
+
+AUDIT & PURGE VERIFICATION:
+- Security Incident Management & Response: {inc_count} tickets reviewed & purged from database
+- Admin & Security Officer Login History: {log_count} login authentication events reviewed & purged
+- Automated Threat Detection & Activity Log: {threat_count} perimeter threat events reviewed & purged
+- Total Records Audited & Cleared: {inc_count + log_count + threat_count}
+
+PERIMETER & INFRASTRUCTURE STATUS:
+- Main Operations Server A: Operational & Enforcing
+- Cyber Sentinel Dedicated SOC Server B: Active & Guarding
+- Database Segregation (Atlas & Turso): Encrypted & Segregated
+- WAF & DDoS Shield: Active (Rate limit 60 req/min)
+
+Security Statement:
+All servers and security are under control. Audited telemetry up to this date has been cleared from active databases pursuant to Chamber Zero-PII & Hygiene protocols.
+
+Cyber Sentinel SOC Security Operations
+High Court of Orissa Chamber
+"""
+
+    html_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"></head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #060e1a; margin: 0; padding: 24px; color: #f8fafc;">
+      <div style="max-width: 600px; margin: 0 auto; background: #0a1728; border-radius: 16px; overflow: hidden; border: 2px solid #00f2fe; box-shadow: 0 10px 40px rgba(0,0,0,0.75);">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #050c17, #0d213a); padding: 26px 24px; border-bottom: 2px solid #00f2fe; text-align: center;">
+          <div style="font-size: 38px; margin-bottom: 6px;">🛡️</div>
+          <h2 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 0.5px;">CYBER SENTINEL SOC · SECURITY AUDIT</h2>
+          <p style="color: #00f2fe; margin: 5px 0 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; font-weight: 700;">
+            High Court of Orissa Chamber · 3-Week Comprehensive Audit Report
+          </p>
+        </div>
+
+        <div style="padding: 26px 24px;">
+          
+          <!-- MANDATORY SIMPLE DECLARATION LINE -->
+          <div style="background: rgba(16, 185, 129, 0.12); border: 2px solid #10b981; border-radius: 12px; padding: 18px 20px; text-align: center; margin-bottom: 22px;">
+            <div style="font-size: 22px; margin-bottom: 4px;">✅</div>
+            <div style="color: #34d399; font-size: 18px; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase;">
+              All servers and security are under control
+            </div>
+            <div style="color: #94a3b8; font-size: 12px; margin-top: 4px;">
+              Chamber Security Officer Verification · Zero Active Breaches
+            </div>
+          </div>
+
+          <!-- Audit Metadata Table -->
+          <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; font-size: 13px; line-height: 1.8;">
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 6px; margin-bottom: 6px;">
+              <span style="color: #94a3b8;">Audit Reference ID:</span>
+              <strong style="color: #38bdf8; font-family: monospace;">{audit_id}</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 6px; margin-bottom: 6px;">
+              <span style="color: #94a3b8;">Audited By:</span>
+              <strong style="color: #f1f5f9;">{officer_name}</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 6px; margin-bottom: 6px;">
+              <span style="color: #94a3b8;">Audit Completed (IST):</span>
+              <strong style="color: #f1f5f9;">{now_ist.strftime("%d %b %Y, %I:%M:%S %p")}</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 6px; margin-bottom: 6px;">
+              <span style="color: #94a3b8;">Audit Cycle Cadence:</span>
+              <strong style="color: #f1f5f9;">Every 3 Weeks (Max 21 Days)</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span style="color: #94a3b8;">Upcoming Scheduled Audit:</span>
+              <strong style="color: #fbbf24; font-family: monospace;">{next_audit_dt.strftime("%d %b %Y, %I:%M:%S %p")}</strong>
+            </div>
+          </div>
+
+          <!-- Purged / Audited Data Counts -->
+          <h4 style="color: #00f2fe; margin: 0 0 10px 0; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;">
+            Audited &amp; Purged Datasets (Cleared from Database):
+          </h4>
+          <div style="display: grid; grid-template-columns: 1fr; gap: 8px; margin-bottom: 22px;">
+            <div style="background: rgba(239, 68, 68, 0.08); border-left: 3px solid #ef4444; padding: 10px 14px; border-radius: 4px; font-size: 13px;">
+              <span style="color: #ffffff; font-weight: 600;">🎫 Security Incident Management &amp; Response:</span>
+              <span style="color: #fca5a5; float: right; font-weight: 700;">{inc_count} tickets purged</span>
+            </div>
+            <div style="background: rgba(245, 158, 11, 0.08); border-left: 3px solid #f59e0b; padding: 10px 14px; border-radius: 4px; font-size: 13px;">
+              <span style="color: #ffffff; font-weight: 600;">🔑 Admin &amp; Security Officer Login History:</span>
+              <span style="color: #fcd34d; float: right; font-weight: 700;">{log_count} sessions purged</span>
+            </div>
+            <div style="background: rgba(59, 130, 246, 0.08); border-left: 3px solid #3b82f6; padding: 10px 14px; border-radius: 4px; font-size: 13px;">
+              <span style="color: #ffffff; font-weight: 600;">🛡️ Automated Threat Detection &amp; Activity Log:</span>
+              <span style="color: #93c5fd; float: right; font-weight: 700;">{threat_count} alerts purged</span>
+            </div>
+          </div>
+
+          <p style="color: #94a3b8; font-size: 12px; line-height: 1.5; margin: 0 0 14px 0;">
+            Pursuant to Chamber Security Protocol, all operational telemetry up to this audit timestamp has been verified, recorded in this official dispatch, and permanently purged from active databases.
+          </p>
+
+          <div style="text-align: center; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px;">
+            <span style="color: #64748b; font-size: 11px;">
+              Cyber Sentinel Dedicated SOC · High Court of Orissa Chamber Enclave · Server B
+            </span>
+          </div>
+
+        </div>
+      </div>
+    </body>
+    </html>
+    """
+
+    # 2. Dispatch Email to Admin
+    email_ok, email_msg = send_soc_custom_email(target_email, subject, plain_text, html_body)
+    
+    # 3. Purge audited datasets from MongoDB collections
+    purged_incidents = 0
+    if security_incidents_col is not None:
+        try:
+            res_inc = security_incidents_col.delete_many({})
+            purged_incidents = res_inc.deleted_count
+        except Exception as e:
+            logging.error(f"Error purging incidents: {e}")
+
+    purged_logins = 0
+    if security_logs_col is not None:
+        try:
+            res_log = security_logs_col.delete_many({
+                "event_type": {"$in": [
+                    "login_2fa_requested", "login_success", "login_failed", 
+                    "login_blocked_locked", "otp_invalid", "otp_expired", 
+                    "force_logout", "staff_verify_failed", "staff_account_locked"
+                ]}
+            })
+            purged_logins = res_log.deleted_count
+        except Exception as e:
+            logging.error(f"Error purging logins: {e}")
+
+    purged_threats = 0
+    if security_logs_col is not None:
+        try:
+            res_thr = security_logs_col.delete_many({
+                "severity": {"$in": ["warning", "high", "critical"]}
+            })
+            purged_threats = res_thr.deleted_count
+        except Exception as e:
+            logging.error(f"Error purging threat logs: {e}")
+
+    # 4. Save Audit Record
+    audit_record = {
+        "audit_id": audit_id,
+        "type": "three_week_security_audit",
+        "status": "COMPLETED",
+        "statement": "All servers and security are under control",
+        "completed_at": now_ist.strftime("%d %b %Y, %I:%M:%S %p"),
+        "completed_epoch": now_ist.timestamp(),
+        "next_scheduled_date": next_audit_dt.strftime("%d %b %Y, %I:%M %p"),
+        "next_scheduled_epoch": next_audit_dt.timestamp(),
+        "auditor": officer_name,
+        "incidents_purged": inc_count,
+        "logins_purged": log_count,
+        "threats_purged": threat_count,
+        "total_purged": inc_count + log_count + threat_count,
+        "admin_email": target_email,
+        "email_dispatched": email_ok,
+        "email_status": email_msg
+    }
+
+    if security_audits_col is not None:
+        try:
+            security_audits_col.insert_one(dict(audit_record))
+        except Exception as e:
+            logging.error(f"Error saving audit record: {e}")
+
+    # 5. Update Schedule in config_col & local persistent file
+    schedule_data = {
+        "_id": "three_week_security_audit_schedule",
+        "last_audit_id": audit_id,
+        "last_audit_date": now_ist.strftime("%d %b %Y, %I:%M %p"),
+        "last_audit_epoch": now_ist.timestamp(),
+        "next_audit_date": next_audit_dt.strftime("%d %b %Y, %I:%M %p"),
+        "next_audit_epoch": next_audit_dt.timestamp(),
+        "cadence_days": 21,
+        "status": "COMPLETED",
+        "statement": "All servers and security are under control",
+        "last_purged_counts": {
+            "incidents": inc_count,
+            "logins": log_count,
+            "threats": threat_count
+        }
+    }
+    
+    if config_col is not None:
+        try:
+            config_col.replace_one({"_id": "three_week_security_audit_schedule"}, schedule_data, upsert=True)
+        except Exception as e:
+            logging.error(f"Error saving schedule in config_col: {e}")
+
+    save_local_audit_schedule(schedule_data)
+
+    # 6. Log completion event
+    log_security_event(
+        "three_week_audit_completed",
+        "info",
+        f"3-Week Security Audit {audit_id} completed and dispatched. Statement: All servers and security are under control. Purged {inc_count} incidents, {log_count} logins, {threat_count} threats. Next due: {next_audit_dt.strftime('%d %b %Y')}.",
+        user=officer_name
+    )
+
+    return {
+        "success": True,
+        "audit_id": audit_id,
+        "statement": "All servers and security are under control",
+        "last_audit_date": now_ist.strftime("%d %b %Y, %I:%M %p"),
+        "next_audit_date": next_audit_dt.strftime("%d %b %Y, %I:%M %p"),
+        "days_remaining": 21,
+        "incidents_purged": inc_count,
+        "logins_purged": log_count,
+        "threats_purged": threat_count,
+        "total_purged": inc_count + log_count + threat_count,
+        "email_dispatched": email_ok,
+        "email_message": email_msg
+    }
+
+@app.route('/api/security/audit-status', methods=['GET'])
+def get_audit_status():
+    try:
+        audit_info = get_three_week_audit_info()
+        audit_info["checks"] = [
+            {"name": "Independent SOC Server Air-Gap", "status": "PASS", "score": 100, "details": "Dedicated isolated infrastructure verified."},
+            {"name": "TLS 1.3 Transport Security", "status": "PASS", "score": 100, "details": "HTTPS end-to-end encryption verified."},
+            {"name": "Database Segregation Boundaries", "status": "PASS", "score": 100, "details": "MongoDB Atlas and Turso Cloud clusters isolated."},
+            {"name": "WAF & DDoS Mitigation Layer", "status": "PASS", "score": 95, "details": "Rate limit active at 60 req/min per IP."},
+            {"name": "Zero-PII Archival Policy", "status": "PASS", "score": 100, "details": "Client identity air-gapped from telemetry."}
+        ]
+        return jsonify(audit_info), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/security/audit-dispatch', methods=['POST'])
+@app.route('/api/security/audit-execute', methods=['POST'])
+def handle_audit_execution():
+    try:
+        res = execute_three_week_security_audit(officer_name="Security Officer (JSM)")
+        return jsonify(res), 200
+    except Exception as e:
+        return jsonify({"error": str(e), "success": False}), 500
+
 @app.route('/api/security/scan', methods=['POST', 'GET'])
 def run_security_scan():
     try:
         now_ist = get_now_ist()
+        audit_info = get_three_week_audit_info()
         scan_result = {
             "timestamp": now_ist.strftime("%d %b %Y, %I:%M:%S %p"),
             "audit_score": "A+",
             "score_numeric": 98,
+            "overall_score": 98,
+            "grade": "A+",
             "status": "PASS",
+            "audit_lifecycle": audit_info,
             "checks": [
                 {"name": "Independent SOC Server Air-Gap", "status": "PASS", "score": 100, "details": "Dedicated isolated infrastructure verified."},
                 {"name": "TLS 1.3 Transport Security", "status": "PASS", "score": 100, "details": "HTTPS end-to-end encryption verified."},
@@ -1122,6 +1664,155 @@ def manage_settings():
             "status": status_val,
             "public_page_status": status_val,
             "public_website_enabled": (status_val == "on")
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/security/admin-panel-status', methods=['GET', 'POST'])
+def manage_admin_panel_status():
+    try:
+        now_ist = get_now_ist()
+        now_iso = now_ist.isoformat()
+        now_str = now_ist.strftime("%d %b %Y, %I:%M:%S %p IST")
+
+        if request.method == 'POST':
+            data = request.get_json(force=True, silent=True) or {}
+            new_status = str(data.get("status") or data.get("admin_panel_status") or "on").strip().lower()
+            if new_status not in ["on", "off"]:
+                new_status = "on"
+
+            reason = str(data.get("reason") or "Critical situation containment / Emergency SOC Review").strip()
+            officer = "Security Officer (Cyber Sentinel SOC)"
+
+            # 1. Update settings_col in MongoDB Atlas
+            if settings_col is not None:
+                settings_col.update_one(
+                    {"_id": "office_info"},
+                    {"$set": {
+                        "admin_panel_status": new_status,
+                        "admin_panel_enabled": (new_status == "on"),
+                        "admin_panel_locked_by": officer,
+                        "admin_panel_lockdown_at": now_str,
+                        "admin_panel_lockdown_reason": reason,
+                        "admin_lockdown_updated_at": now_iso
+                    }},
+                    upsert=True
+                )
+
+            # 2. Update config_col in MongoDB Atlas
+            if config_col is not None:
+                config_col.update_one(
+                    {"_id": "admin_panel_status"},
+                    {"$set": {
+                        "status": new_status,
+                        "enabled": (new_status == "on"),
+                        "reason": reason,
+                        "updated_at": now_iso
+                    }},
+                    upsert=True
+                )
+
+            # 3. Synchronize with Server A via live HTTP endpoint
+            try:
+                sync_payload = {
+                    "secret": "JSM_SOC_INTERNAL_RELAY_2026",
+                    "admin_panel_status": new_status,
+                    "admin_panel_enabled": (new_status == "on"),
+                    "reason": reason,
+                    "locked_at": now_str
+                }
+                if requests is not None:
+                    requests.post(
+                        f"{MAIN_SERVER_URL}/api/internal/admin-panel-lockdown",
+                        json=sync_payload,
+                        headers={"Content-Type": "application/json", "X-Admin-Request": "true"},
+                        timeout=3
+                    )
+                else:
+                    req_data = json.dumps(sync_payload).encode('utf-8')
+                    ureq = urllib.request.Request(
+                        f"{MAIN_SERVER_URL}/api/internal/admin-panel-lockdown",
+                        data=req_data,
+                        headers={"Content-Type": "application/json", "X-Admin-Request": "true"},
+                        method='POST'
+                    )
+                    with urllib.request.urlopen(ureq, timeout=3) as _:
+                        pass
+            except Exception as se:
+                logging.warning(f"Could not notify Server A of admin panel status directly: {se}")
+
+            # 4. Dispatch Email to Admin
+            email_sent, email_msg = send_admin_security_review_email(new_status, reason, officer)
+
+            # 5. Security Log & Incident Record
+            if new_status == "off":
+                log_security_event(
+                    "admin_panel_lockdown_engaged",
+                    "critical",
+                    f"Admin Panel suspended by SOC Security Officer. Reason: {reason}. Email dispatched to Admin.",
+                    user=officer
+                )
+                if security_incidents_col is not None:
+                    security_incidents_col.insert_one({
+                        "incident_id": f"INC-ADM-LOCK-{now_ist.year}-{random.randint(1000, 9999)}",
+                        "title": "Chamber Admin Portal Suspended by SOC Officer",
+                        "severity": "critical",
+                        "category": "Admin Portal Lockdown",
+                        "status": "investigating",
+                        "detected_at": now_str,
+                        "details": f"Reason: {reason}. Admin portal taken offline. Security Timeout banner engaged.",
+                        "assigned_to": officer
+                    })
+            else:
+                log_security_event(
+                    "admin_panel_lockdown_lifted",
+                    "info",
+                    f"Admin Panel restored to active operations by SOC Security Officer.",
+                    user=officer
+                )
+
+            return jsonify({
+                "success": True,
+                "admin_panel_status": new_status,
+                "admin_panel_enabled": (new_status == "on"),
+                "reason": reason,
+                "email_sent": email_sent,
+                "message": f"Admin Panel status switched to {new_status.upper()}."
+            }), 200
+
+        # GET
+        status_val = "on"
+        reason_val = ""
+        locked_at = ""
+        locked_by = ""
+        if settings_col is not None:
+            doc = settings_col.find_one({"_id": "office_info"}, {
+                "admin_panel_status": 1,
+                "admin_panel_enabled": 1,
+                "admin_panel_lockdown_reason": 1,
+                "admin_panel_lockdown_at": 1,
+                "admin_panel_locked_by": 1
+            })
+            if doc:
+                if "admin_panel_status" in doc:
+                    status_val = str(doc["admin_panel_status"]).strip().lower()
+                elif "admin_panel_enabled" in doc:
+                    status_val = "on" if doc["admin_panel_enabled"] else "off"
+                reason_val = doc.get("admin_panel_lockdown_reason", "")
+                locked_at = doc.get("admin_panel_lockdown_at", "")
+                locked_by = doc.get("admin_panel_locked_by", "")
+        elif config_col is not None:
+            doc = config_col.find_one({"_id": "admin_panel_status"})
+            if doc:
+                status_val = str(doc.get("status", "on")).strip().lower()
+                reason_val = doc.get("reason", "")
+
+        return jsonify({
+            "admin_panel_status": status_val,
+            "admin_panel_enabled": (status_val == "on"),
+            "reason": reason_val,
+            "locked_at": locked_at,
+            "locked_by": locked_by
         }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500

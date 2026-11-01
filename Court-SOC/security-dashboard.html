@@ -1088,6 +1088,10 @@
                     <span id="top-status-dot">🟢</span>
                     <span id="top-status-text">Public Website: LIVE (ON)</span>
                 </div>
+                <div id="top-admin-pill" class="status-pill-btn status-pill-live" onclick="toggleAdminPanelQuick()" title="Click to instantly toggle Admin Panel ON / OFF" style="margin-left: 6px; border-color: rgba(239, 68, 68, 0.4);">
+                    <span id="top-admin-dot">🟢</span>
+                    <span id="top-admin-text">Admin Panel: ACTIVE</span>
+                </div>
 
                 <button class="btn-soc btn-cyan" onclick="runLiveAuditScan()">
                     <span>⚡</span> Run Audit Scan
@@ -1258,6 +1262,51 @@
                     <button class="btn-soc btn-gold" id="btn-apply-status" onclick="applyPublicWebsiteStatus()" style="padding: 10px 22px; font-size: 0.92rem;">
                         💾 Apply Website State
                     </button>
+                </div>
+            </div>
+
+            <!-- MASTER ADMIN PANEL EMERGENCY LOCKDOWN & SECURITY REVIEW CARD -->
+            <div class="lockdown-master-card" id="admin-panel-lockdown-card" style="margin-top: 18px; border: 1.5px solid rgba(239, 68, 68, 0.35);">
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 14px;">
+                    <div style="display: flex; align-items: center; gap: 14px;">
+                        <span style="font-size: 2.4rem;">🔒</span>
+                        <div>
+                            <h3 style="margin: 0; font-size: 1.3rem; color: #f87171; font-family: 'Playfair Display', Georgia, serif;">
+                                Admin Panel Master Security Switch: ACTIVE (ON) / EMERGENCY LOCKDOWN (OFF)
+                            </h3>
+                            <p style="margin: 3px 0 0 0; color: var(--text-muted); font-size: 0.88rem;">
+                                Emergency Incident Containment. Instantly suspends the Chamber Admin Portal, forces a Security Timeout screen, and dispatches a formal security review email to the Administrator.
+                            </p>
+                        </div>
+                    </div>
+
+                    <span id="master-admin-status-badge" class="badge-soc badge-pass" style="font-size: 0.88rem; padding: 8px 18px; border-radius: 999px;">
+                        🟢 Admin Panel: ACTIVE (ON)
+                    </span>
+                </div>
+
+                <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 14px 18px; margin-bottom: 18px; font-size: 0.88rem; line-height: 1.6; color: #cbd5e1;">
+                    • <strong style="color: #4ade80;">ON (Active / Operational)</strong>: Chamber Admin Portal is fully accessible. Authorized administrators can authenticate via 2FA and manage chamber appointments, accounts, and legal records.<br>
+                    • <strong style="color: #f87171;">OFF (Emergency Security Review / Lockdown)</strong>: Immediately terminates and blocks all administrative access. Displays an un-dismissable <strong>"Security Timeout: Admin Panel Under Emergency Review"</strong> banner on the admin login and dashboard. Dispatches an urgent alert email to the Chamber Administrator.
+                </div>
+
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+                    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                        <label id="lbl-admin-status-on" style="display: flex; align-items: center; gap: 8px; background: rgba(16, 185, 129, 0.2); border: 2px solid #10b981; padding: 10px 18px; border-radius: 10px; cursor: pointer; color: #ffffff; font-weight: 700; font-size: 0.92rem; transition: all 0.2s ease;">
+                            <input type="radio" name="soc_admin_status_radio" id="soc-admin-status-on" value="on" checked onchange="handleAdminRadioChange('on')" style="accent-color: #10b981; width: 18px; height: 18px;">
+                            <span>🟢 ON (Admin Panel Active)</span>
+                        </label>
+                        <label id="lbl-admin-status-off" style="display: flex; align-items: center; gap: 8px; background: rgba(255, 255, 255, 0.05); border: 1.5px solid #64748b; padding: 10px 18px; border-radius: 10px; cursor: pointer; color: #cbd5e1; font-weight: 600; font-size: 0.92rem; transition: all 0.2s ease;">
+                            <input type="radio" name="soc_admin_status_radio" id="soc-admin-status-off" value="off" onchange="handleAdminRadioChange('off')" style="accent-color: #ef4444; width: 18px; height: 18px;">
+                            <span>🔴 OFF (Lockdown / Security Review)</span>
+                        </label>
+                    </div>
+
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button class="btn-soc btn-red" id="btn-apply-admin-status" onclick="applyAdminPanelStatus()" style="padding: 10px 22px; font-size: 0.92rem; background: linear-gradient(135deg, #b91c1c, #ef4444); color: #fff; border: none; font-weight: 700; border-radius: 8px; cursor: pointer;">
+                            🛡️ Apply Admin Security State
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -2037,6 +2086,125 @@
 
             <!-- SECTION 5: WEBSITE SECURITY AUDIT -->
             <div id="section-audit" class="soc-section">
+                
+                <!-- 3-WEEK SECURITY AUDIT & AUTOMATIC PURGE LIFECYCLE PANEL -->
+                <div class="soc-panel" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(10, 23, 40, 0.95)); border: 1.5px solid #10b981; margin-bottom: 24px; position: relative; overflow: hidden; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);">
+                    <!-- Top Ribbon -->
+                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 20px; border-bottom: 1px solid rgba(16, 185, 129, 0.25); padding-bottom: 16px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="font-size: 2.2rem;">🛡️</span>
+                            <div>
+                                <h3 style="margin: 0; font-size: 1.35rem; color: #34d399; font-weight: 900; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                                    3-Week Security Audit Lifecycle &amp; Admin Report
+                                    <span class="badge-soc badge-pass" style="font-size: 0.72rem; padding: 4px 10px;">CADENCE: 3 WEEKS (21 DAYS)</span>
+                                </h3>
+                                <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: #94a3b8;">
+                                    Security Officer reviews live telemetry and dispatches formal audit report to Admin. Upon execution, all audited incidents, login histories, and threat logs up to this point are automatically purged from the database.
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Schedule Policy Badge -->
+                        <div style="text-align: right; background: rgba(0,0,0,0.35); padding: 8px 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08);">
+                            <div style="font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">Schedule Policy</div>
+                            <div style="font-size: 0.85rem; color: #38bdf8; font-weight: 700;">Max: 3 Weeks · On-Demand: Anytime</div>
+                        </div>
+                    </div>
+
+                    <!-- Metrics Grid: Last Audit Date | Upcoming Scheduled Date | Under Control Banner -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 20px;">
+                        
+                        <!-- Last Audit Box -->
+                        <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 18px 20px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <span style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">Last Audit Conducted</span>
+                                <span style="font-size: 0.72rem; color: #6ee7b7; font-family: monospace;">● Officer JSM Verified</span>
+                            </div>
+                            <div id="soc-last-audit-date" style="font-size: 1.15rem; font-weight: 800; color: #ffffff; font-family: 'JetBrains Mono', monospace; margin-bottom: 4px;">
+                                Loading audit date...
+                            </div>
+                            <div style="font-size: 0.76rem; color: #64748b;">Historical logs prior to this date were permanently purged.</div>
+                        </div>
+
+                        <!-- Upcoming Scheduled Audit Box -->
+                        <div style="background: rgba(15, 23, 42, 0.75); border: 1.5px solid rgba(245, 158, 11, 0.45); border-radius: 12px; padding: 18px 20px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <span style="font-size: 0.75rem; color: #fbbf24; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">Upcoming Scheduled Audit</span>
+                                <span id="soc-audit-countdown-badge" class="badge-soc badge-medium" style="font-size: 0.7rem; padding: 3px 8px;">21 Days Cycle</span>
+                            </div>
+                            <div id="soc-next-audit-date" style="font-size: 1.15rem; font-weight: 800; color: #fde047; font-family: 'JetBrains Mono', monospace; margin-bottom: 4px;">
+                                Calculating schedule...
+                            </div>
+                            <div style="font-size: 0.76rem; color: #94a3b8;">
+                                Available on-demand before scheduled date (minimum every day / anytime).
+                            </div>
+                        </div>
+
+                        <!-- Statement Highlight Box -->
+                        <div style="background: rgba(16, 185, 129, 0.12); border: 1.5px solid #10b981; border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; justify-content: center;">
+                            <div style="font-size: 0.72rem; color: #6ee7b7; text-transform: uppercase; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">
+                                Official Admin Email Statement
+                            </div>
+                            <div style="font-size: 1.05rem; font-weight: 900; color: #ffffff; letter-spacing: 0.3px; display: flex; align-items: center; gap: 8px;">
+                                <span style="color: #34d399;">✅</span> "All servers and security are under control"
+                            </div>
+                            <div style="font-size: 0.76rem; color: #94a3b8; margin-top: 6px;">
+                                Dispatched to: <strong style="color: #38bdf8;">jsmchamberscuttack2026@gmail.com</strong>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Data Purge Scope Breakdown -->
+                    <div style="background: rgba(0, 0, 0, 0.4); border-radius: 12px; padding: 16px 20px; margin-bottom: 22px; border: 1px solid rgba(255,255,255,0.06);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
+                            <div style="font-size: 0.82rem; font-weight: 800; color: #e2e8f0; text-transform: uppercase; letter-spacing: 0.5px;">
+                                Current Un-audited Datasets Scheduled for Purge upon Execution:
+                            </div>
+                            <div style="font-size: 0.76rem; color: #94a3b8;">
+                                Auto-flushed from MongoDB &amp; System Memory on completion
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+                            <div style="background: rgba(239, 68, 68, 0.1); border-left: 3px solid #ef4444; border-radius: 8px; padding: 12px 14px;">
+                                <div style="font-size: 0.74rem; color: #fca5a5; font-weight: 700; text-transform: uppercase;">1. Security Incident Management</div>
+                                <div style="font-size: 1.4rem; font-weight: 900; color: #ffffff; font-family: 'JetBrains Mono', monospace;" id="soc-pending-incidents-count">0</div>
+                                <div style="font-size: 0.72rem; color: #94a3b8;">Pending tickets to be archived &amp; deleted</div>
+                            </div>
+
+                            <div style="background: rgba(245, 158, 11, 0.1); border-left: 3px solid #f59e0b; border-radius: 8px; padding: 12px 14px;">
+                                <div style="font-size: 0.74rem; color: #fcd34d; font-weight: 700; text-transform: uppercase;">2. Login History (Admin &amp; SOC)</div>
+                                <div style="font-size: 1.4rem; font-weight: 900; color: #ffffff; font-family: 'JetBrains Mono', monospace;" id="soc-pending-logins-count">0</div>
+                                <div style="font-size: 0.72rem; color: #94a3b8;">Authentication logs to be cleared</div>
+                            </div>
+
+                            <div style="background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; border-radius: 8px; padding: 12px 14px;">
+                                <div style="font-size: 0.74rem; color: #93c5fd; font-weight: 700; text-transform: uppercase;">3. Threat Detection Activity</div>
+                                <div style="font-size: 1.4rem; font-weight: 900; color: #ffffff; font-family: 'JetBrains Mono', monospace;" id="soc-pending-threats-count">0</div>
+                                <div style="font-size: 0.72rem; color: #94a3b8;">WAF &amp; threat entries to be cleared</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dispatch Controls -->
+                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+                        <div style="font-size: 0.82rem; color: #94a3b8; display: flex; align-items: center; gap: 8px;">
+                            <span>ℹ️</span>
+                            <span>The Security Officer can dispatch this audit report anytime before or at the 3-week schedule mark.</span>
+                        </div>
+
+                        <div style="display: flex; gap: 12px; align-items: center;">
+                            <button class="btn-soc" onclick="loadThreeWeekAuditStatus()" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #ffffff; padding: 11px 18px; font-size: 0.88rem;">
+                                <span>🔄</span> Refresh Audit Data
+                            </button>
+                            <button class="btn-soc btn-gold" id="btn-execute-audit" onclick="openExecuteAuditModal()" style="padding: 12px 24px; font-size: 0.95rem; font-weight: 800; box-shadow: 0 0 25px rgba(212, 175, 55, 0.4);">
+                                <span>🚀</span> Execute &amp; Dispatch 3-Week Audit Report
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Audit Header Card -->
                 <div class="soc-panel" style="background: linear-gradient(135deg, rgba(0, 242, 254, 0.08), rgba(10, 23, 40, 0.95)); border: 1.5px solid var(--cyan);">
                     <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px;">
@@ -2240,6 +2408,54 @@
             <div style="display: flex; justify-content: flex-end; gap: 10px;">
                 <button class="btn-soc btn-outline-soc" onclick="closeModal('modal-create-incident')">Cancel</button>
                 <button class="btn-soc btn-gold" onclick="submitCreateIncident()">➕ Create Ticket</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: CONFIRM 3-WEEK SECURITY AUDIT & PURGE DISPATCH -->
+    <div id="modal-execute-audit" class="modal-overlay" style="display: none; align-items: center; justify-content: center; position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); z-index: 100000; padding: 20px;">
+        <div class="modal-box" style="background: #0b192c; border: 2px solid #10b981; border-radius: 18px; max-width: 580px; width: 100%; padding: 28px; box-shadow: 0 20px 60px rgba(0,0,0,0.85); color: #ffffff;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 14px;">
+                <h3 style="margin: 0; font-size: 1.25rem; color: #34d399; display: flex; align-items: center; gap: 8px;">
+                    <span>🛡️</span> Confirm 3-Week Security Audit Execution
+                </h3>
+                <span onclick="closeExecuteAuditModal()" style="font-size: 1.8rem; color: #94a3b8; cursor: pointer; line-height: 1;">&times;</span>
+            </div>
+
+            <!-- MANDATORY DECLARATION BANNER -->
+            <div style="background: rgba(16, 185, 129, 0.12); border: 1.5px solid #10b981; border-radius: 12px; padding: 16px; text-align: center; margin-bottom: 18px;">
+                <div style="font-size: 0.72rem; color: #6ee7b7; text-transform: uppercase; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">
+                    Mandatory Admin Mail Declaration
+                </div>
+                <div style="font-size: 1.1rem; font-weight: 900; color: #ffffff;">
+                    "All servers and security are under control"
+                </div>
+                <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 5px;">
+                    Dispatched to Chamber Admin: <span style="color: #38bdf8; font-weight: 700;">jsmchamberscuttack2026@gmail.com</span>
+                </div>
+            </div>
+
+            <!-- PURGE WARNING & DETAIL -->
+            <div style="background: rgba(239, 68, 68, 0.08); border: 1.5px solid rgba(239, 68, 68, 0.4); border-radius: 12px; padding: 16px; margin-bottom: 20px; font-size: 0.85rem; line-height: 1.6; color: #fca5a5;">
+                <strong style="color: #ffffff; display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+                    <span>⚠️</span> Permanent Data Purge Notice:
+                </strong>
+                Upon clicking confirm, the official 3-week audit report will be dispatched to the Administrator email, and all audited data up to this moment will be <strong>permanently removed from the system and MongoDB database</strong>:
+                <ul style="margin: 8px 0 0 18px; padding: 0;">
+                    <li><strong>Security Incident Management &amp; Response:</strong> all active incident tickets cleared</li>
+                    <li><strong>Admin &amp; Security Officer Login History:</strong> all past authentication logs cleared</li>
+                    <li><strong>Automated Threat Detection &amp; Activity Log:</strong> all perimeter threat telemetry cleared</li>
+                </ul>
+                <div style="margin-top: 10px; font-size: 0.8rem; color: #fde047;">
+                    The next scheduled audit will be set to <strong>3 weeks (21 days)</strong> from today.
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                <button class="btn-soc btn-outline-soc" onclick="closeExecuteAuditModal()" style="padding: 10px 18px;">Cancel</button>
+                <button class="btn-soc btn-gold" id="btn-confirm-audit-dispatch" onclick="confirmExecuteAuditAndPurge()" style="padding: 11px 24px; font-weight: 800; box-shadow: 0 0 20px rgba(212, 175, 55, 0.4);">
+                    <span>✉️</span> Confirm &amp; Dispatch to Admin Mail
+                </button>
             </div>
         </div>
     </div>
@@ -2559,10 +2775,134 @@
         }
 
         // ==========================================
+        //  ADMIN PANEL EMERGENCY LOCKDOWN & REVIEW
+        // ==========================================
+        function updateAdminStatusUI(status) {
+            const isLive = (status === 'on' || status === true);
+            const badge = document.getElementById('master-admin-status-badge');
+            const radioOn = document.getElementById('soc-admin-status-on');
+            const radioOff = document.getElementById('soc-admin-status-off');
+            const lblOn = document.getElementById('lbl-admin-status-on');
+            const lblOff = document.getElementById('lbl-admin-status-off');
+            const topPill = document.getElementById('top-admin-pill');
+            const topDot = document.getElementById('top-admin-dot');
+            const topText = document.getElementById('top-admin-text');
+
+            if (radioOn && radioOff) {
+                radioOn.checked = isLive;
+                radioOff.checked = !isLive;
+            }
+
+            if (badge) {
+                badge.className = isLive ? 'badge-soc badge-pass' : 'badge-soc badge-critical';
+                badge.innerText = isLive ? '🟢 Admin Panel: ACTIVE (ON)' : '🔴 Admin Panel: SECURITY LOCKDOWN (OFF)';
+            }
+
+            if (topPill && topDot && topText) {
+                topPill.className = isLive ? 'status-pill-btn status-pill-live' : 'status-pill-btn status-pill-repair';
+                topDot.innerText = isLive ? '🟢' : '🔴';
+                topText.innerText = isLive ? 'Admin Panel: ACTIVE' : 'Admin Panel: LOCKED';
+            }
+
+            if (lblOn && lblOff) {
+                if (isLive) {
+                    lblOn.style.background = 'rgba(16, 185, 129, 0.2)';
+                    lblOn.style.border = '2px solid #10b981';
+                    lblOn.style.color = '#ffffff';
+                    lblOff.style.background = 'rgba(255, 255, 255, 0.05)';
+                    lblOff.style.border = '1.5px solid #64748b';
+                    lblOff.style.color = '#cbd5e1';
+                } else {
+                    lblOff.style.background = 'rgba(239, 68, 68, 0.2)';
+                    lblOff.style.border = '2px solid #ef4444';
+                    lblOff.style.color = '#ffffff';
+                    lblOn.style.background = 'rgba(255, 255, 255, 0.05)';
+                    lblOn.style.border = '1.5px solid #64748b';
+                    lblOn.style.color = '#cbd5e1';
+                }
+            }
+        }
+
+        function handleAdminRadioChange(val) {
+            updateAdminStatusUI(val);
+        }
+
+        async function applyAdminPanelStatus(statusVal) {
+            let status = statusVal;
+            if (!status) {
+                const isOff = document.getElementById('soc-admin-status-off')?.checked;
+                status = isOff ? 'off' : 'on';
+            }
+            const isLockdown = (status === 'off');
+
+            let reason = "Critical situation containment / Emergency SOC Review";
+            if (isLockdown) {
+                const entered = prompt("🚨 EMERGENCY ADMIN LOCKDOWN:\nEnter the specific critical situation or reason (this will be emailed to the Admin):", "Emergency security review in progress / Active threat containment");
+                if (entered === null) {
+                    updateAdminStatusUI('on');
+                    return;
+                }
+                if (entered.trim()) reason = entered.trim();
+            }
+
+            const btn = document.getElementById('btn-apply-admin-status');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerText = 'Applying State & Sending Email...';
+            }
+
+            try {
+                const res = await fetch('/api/security/admin-panel-status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Admin-Request': 'true' },
+                    body: JSON.stringify({ status: status, reason: reason })
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    updateAdminStatusUI(status);
+                    if (isLockdown) {
+                        showToast('🚨 Admin Panel is now LOCKED DOWN! Security Timeout active & alert email delivered to Admin.', 'warning');
+                    } else {
+                        showToast('✅ Admin Panel is now ACTIVE (ON)! Access restored & notification sent to Admin.', 'success');
+                    }
+                    loadSecurityOverview();
+                } else {
+                    showToast(data.error || 'Failed to update admin panel status.', 'error');
+                }
+            } catch(e) {
+                showToast('Network error while updating admin panel state.', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerText = '🛡️ Apply Admin Security State';
+                }
+            }
+        }
+
+        async function toggleAdminPanelQuick() {
+            const isOff = document.getElementById('soc-admin-status-off')?.checked;
+            const next = isOff ? 'on' : 'off';
+            await applyAdminPanelStatus(next);
+        }
+
+        async function loadAdminPanelStatus() {
+            try {
+                const res = await fetch('/api/security/admin-panel-status', { headers: { 'X-Admin-Request': 'true' } });
+                const data = await res.json();
+                if (res.ok && data.admin_panel_status) {
+                    updateAdminStatusUI(data.admin_panel_status);
+                }
+            } catch (e) {
+                console.warn('Could not load admin panel status:', e);
+            }
+        }
+
+        // ==========================================
         //  1. SECURITY OVERVIEW DASHBOARD
         // ==========================================
         async function loadSecurityOverview() {
             loadWafStatus();
+            loadAdminPanelStatus();
             try {
                 const res = await fetch('/api/security/overview', { headers: { 'X-Admin-Request': 'true' } });
                 const data = await res.json();
@@ -2953,16 +3293,102 @@
         }
 
         // ==========================================
-        //  5. WEBSITE SECURITY AUDIT
+        //  5. WEBSITE SECURITY AUDIT & 3-WEEK LIFECYCLE
         // ==========================================
-        async function loadAuditStatus() {
+        async function loadThreeWeekAuditStatus() {
             try {
-                const res = await fetch('/api/security/audit-status', { headers: { 'X-Admin-Request': 'true' } });
+                const res = await fetch('/api/security/audit-status?t=' + Date.now(), { headers: { 'X-Admin-Request': 'true' } });
                 const data = await res.json();
                 if (!res.ok) return;
+
+                // Update last audit date
+                const lastEl = document.getElementById('soc-last-audit-date');
+                if (lastEl) {
+                    lastEl.innerText = data.last_audit_date || 'Not yet conducted (Initial 3-Week Cycle Active)';
+                }
+
+                // Update upcoming scheduled date
+                const nextEl = document.getElementById('soc-next-audit-date');
+                if (nextEl) {
+                    nextEl.innerText = data.next_audit_date || 'In 21 Days';
+                }
+
+                // Update badge / countdown
+                const badgeEl = document.getElementById('soc-audit-countdown-badge');
+                if (badgeEl) {
+                    if (data.is_overdue) {
+                        badgeEl.className = 'badge-soc badge-critical';
+                        badgeEl.innerText = '🔴 Audit Due Now';
+                    } else {
+                        badgeEl.className = 'badge-soc badge-medium';
+                        badgeEl.innerText = `${data.days_remaining} Days Remaining (Max 21d)`;
+                    }
+                }
+
+                // Update pending un-audited records counts
+                const incCountEl = document.getElementById('soc-pending-incidents-count');
+                if (incCountEl) incCountEl.innerText = data.pending_incidents !== undefined ? data.pending_incidents : 0;
+
+                const logCountEl = document.getElementById('soc-pending-logins-count');
+                if (logCountEl) logCountEl.innerText = data.pending_logins !== undefined ? data.pending_logins : 0;
+
+                const thrCountEl = document.getElementById('soc-pending-threats-count');
+                if (thrCountEl) thrCountEl.innerText = data.pending_threats !== undefined ? data.pending_threats : 0;
+
                 renderAuditReport(data);
             } catch(e) {
-                console.error('Error loading audit status:', e);
+                console.error('Error loading 3-week audit status:', e);
+            }
+        }
+
+        async function loadAuditStatus() {
+            await loadThreeWeekAuditStatus();
+        }
+
+        function openExecuteAuditModal() {
+            const m = document.getElementById('modal-execute-audit');
+            if (m) m.style.display = 'flex';
+        }
+
+        function closeExecuteAuditModal() {
+            const m = document.getElementById('modal-execute-audit');
+            if (m) m.style.display = 'none';
+        }
+
+        async function confirmExecuteAuditAndPurge() {
+            const btn = document.getElementById('btn-confirm-audit-dispatch');
+            const origText = btn ? btn.innerHTML : 'Confirm &amp; Dispatch';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span>⏳</span> Dispatching &amp; Purging...';
+            }
+
+            try {
+                const res = await fetch('/api/security/audit-dispatch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Admin-Request': 'true' }
+                });
+                const d = await res.json();
+                if (res.ok && d.success) {
+                    showToast(`✅ 3-Week Audit completed! Statement "All servers and security are under control" emailed to Admin. Purged ${d.total_purged} records from database.`, 'success');
+                    closeExecuteAuditModal();
+                    
+                    // Immediately refresh all related views to reflect the purged database state
+                    await loadThreeWeekAuditStatus();
+                    if (typeof loadIncidents === 'function') loadIncidents();
+                    if (typeof loadLogins === 'function') loadLogins();
+                    if (typeof loadThreats === 'function') loadThreats();
+                    if (typeof loadSecurityOverview === 'function') loadSecurityOverview();
+                } else {
+                    showToast(d.error || 'Failed to complete security audit.', 'error');
+                }
+            } catch(e) {
+                showToast('Network error while dispatching audit.', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = origText;
+                }
             }
         }
 
@@ -2982,6 +3408,9 @@
                 const data = await res.json();
                 if (res.ok) {
                     renderAuditReport(data);
+                    if (data.audit_lifecycle) {
+                        loadThreeWeekAuditStatus();
+                    }
                     showToast(`Audit scan completed! Compliance score: ${data.overall_score}% (${data.grade})`, 'success');
                     loadSecurityOverview();
                 } else {
@@ -3777,6 +4206,7 @@
             document.documentElement.classList.add('authenticated');
             document.body.classList.add('authenticated');
             loadSecurityOverview();
+            loadThreeWeekAuditStatus();
             probeServerANow();
 
             // Telemetry poller every 30s
