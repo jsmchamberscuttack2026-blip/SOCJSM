@@ -848,9 +848,132 @@
             color: #bae6fd;
         }
 
+        /* ========================================================
+           COMPULSORY SECURITY OFFICER LOGIN: NO LOGIN, NO DASHBOARD
+           ======================================================== */
+        html:not(.authenticated) #soc-dashboard-wrapper,
+        body:not(.authenticated) #soc-dashboard-wrapper,
+        body:not(.authenticated) .soc-sidebar,
+        body:not(.authenticated) .soc-main,
+        body:not(.authenticated) .soc-modal-overlay,
+        body:not(.authenticated) .soc-toast-container {
+            display: none !important;
+        }
+
+        html.authenticated #soc-login-screen,
+        body.authenticated #soc-login-screen {
+            display: none !important;
+        }
+
+        html.authenticated #soc-dashboard-wrapper,
+        body.authenticated #soc-dashboard-wrapper {
+            display: flex !important;
+            width: 100%;
+            min-height: 100vh;
+        }
+
+        #soc-login-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle at center, #071527 0%, #020710 100%);
+            z-index: 999999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
     </style>
+    <script>
+        (function() {
+            try {
+                if (sessionStorage.getItem('soc_officer_authenticated') === 'true') {
+                    document.documentElement.classList.add('authenticated');
+                }
+            } catch (e) {}
+        })();
+    </script>
 </head>
 <body>
+
+    <!-- COMPULSORY SECURITY OFFICER LOGIN (NO LOGIN, NO DASHBOARD) -->
+    <div id="soc-login-screen">
+        <div class="soc-auth-card">
+            <div class="soc-auth-icon">🛡️</div>
+            <h2 style="font-family: 'Playfair Display', Georgia, serif; color: #fff; margin: 0 0 6px 0; font-size: 1.45rem;">
+                Cyber Sentinel Dedicated SOC
+            </h2>
+            <p style="color: #D4AF37; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; margin-bottom: 20px;">
+                Security Officer Authentication Required
+            </p>
+
+            <div id="auth-alert-box" class="auth-alert" style="display: none;"></div>
+
+            <!-- STEP 1: Security Officer Login (ID: JSM, Password: Email) -->
+            <div id="auth-step-1">
+                <form id="soc-login-form" onsubmit="event.preventDefault(); submitSocLogin();">
+                    <div style="text-align: left; margin-bottom: 14px;">
+                        <label style="font-size: 0.78rem; font-weight: 700; color: #cbd5e1; text-transform: uppercase; letter-spacing: 0.8px; display: block; margin-bottom: 6px;">
+                            Security Officer User ID
+                        </label>
+                        <input type="text" id="soc-user-id" required placeholder="Enter User ID (e.g. JSM)" autocomplete="username"
+                               style="width: 100%; padding: 11px 14px; background: #050c17; border: 1.5px solid rgba(212,175,55,0.4); border-radius: 8px; color: #fff; font-size: 0.95rem; box-sizing: border-box; outline: none; transition: border-color 0.2s;"
+                               onfocus="this.style.borderColor='#D4AF37'" onblur="this.style.borderColor='rgba(212,175,55,0.4)'">
+                    </div>
+
+                    <div style="text-align: left; margin-bottom: 14px;">
+                        <label style="font-size: 0.78rem; font-weight: 700; color: #cbd5e1; text-transform: uppercase; letter-spacing: 0.8px; display: block; margin-bottom: 6px;">
+                            Password (Registered Officer Email)
+                        </label>
+                        <input type="password" id="soc-password" required placeholder="Enter Registered Officer Email" autocomplete="current-password"
+                               style="width: 100%; padding: 11px 14px; background: #050c17; border: 1.5px solid rgba(212,175,55,0.4); border-radius: 8px; color: #fff; font-size: 0.95rem; box-sizing: border-box; outline: none; transition: border-color 0.2s;"
+                               onfocus="this.style.borderColor='#D4AF37'" onblur="this.style.borderColor='rgba(212,175,55,0.4)'">
+                        <small style="color: #94a3b8; font-size: 0.74rem; display: block; margin-top: 6px; line-height: 1.35;">
+                            🛡️ Security Officers: Enter User ID <strong>JSM</strong> and your registered email address as password.
+                        </small>
+                    </div>
+
+                    <button type="submit" id="btn-request-otp" class="btn-soc btn-gold" style="width: 100%; justify-content: center; padding: 13px; font-size: 0.95rem; margin-top: 10px;">
+                        🔐 Authenticate &amp; Dispatch 2FA OTP
+                    </button>
+                </form>
+                <div style="margin-top: 18px; text-align: center; font-size: 0.72rem; color: #64748b; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 12px;">
+                    ⚖️ Access Strictly Restricted to Authorized Security Personnel · Login Compulsory
+                </div>
+            </div>
+
+            <!-- STEP 2: Verify OTP -->
+            <div id="auth-step-2" style="display: none;">
+                <p style="color: #cbd5e1; font-size: 0.86rem; margin-bottom: 14px;">
+                    Enter the 6-digit code dispatched to <strong style="color: #00f2fe;" id="auth-sent-target-display">your email</strong>:
+                </p>
+                <div style="margin-bottom: 16px;">
+                    <input type="text" id="soc-otp-input" maxlength="6" pattern="[0-9]{6}" placeholder="••••••" autocomplete="one-time-code" inputmode="numeric" style="width: 100%; text-align: center; font-size: 2.2rem; letter-spacing: 12px; font-weight: 800; font-family: monospace; background: #050c17; border: 2px solid #D4AF37; border-radius: 10px; color: #fff; padding: 10px; box-sizing: border-box;">
+                </div>
+                <div style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 16px;">
+                    ⏱️ Code expires in: <strong id="auth-otp-timer" style="color: #fde047;">05:00</strong>
+                </div>
+                <button id="btn-verify-otp" class="btn-soc btn-gold" onclick="verifySocOtp()" style="width: 100%; justify-content: center; padding: 13px; font-size: 0.95rem; margin-bottom: 10px;">
+                    ✅ Verify &amp; Unlock SOC
+                </button>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn-soc btn-outline-soc" onclick="resetToStep1()" style="flex: 1; justify-content: center; font-size: 0.8rem;">
+                        ← Back
+                    </button>
+                    <button class="btn-soc btn-outline-soc" id="btn-resend-soc-otp" onclick="resendSocOtp()" style="flex: 1; justify-content: center; font-size: 0.8rem;">
+                        🔄 Resend Code
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN SOC DASHBOARD (LOCKED UNTIL 100% AUTHENTICATED) -->
+    <div id="soc-dashboard-wrapper" class="soc-dashboard-wrapper">
 
     <!-- Sidebar Navigation -->
     <aside class="soc-sidebar" id="soc-sidebar">
@@ -1932,6 +2055,7 @@
 
         </div>
     </main>
+    </div> <!-- End of #soc-dashboard-wrapper -->
 
     <!-- Modal: Manage / Investigate Incident -->
     <div class="soc-modal-overlay" id="modal-incident-investigate">
@@ -3266,11 +3390,14 @@
                     sessionStorage.setItem('soc_officer_authenticated', 'true');
                     sessionStorage.setItem('securityOfficerLoggedIn', 'true');
                     sessionStorage.setItem('officerEmail', data.officer_email || cachedOfficerPassword || 'arnnavpanda@gmail.com');
+                    document.cookie = "security_officer_logged_in=true; path=/; max-age=86400; SameSite=Lax";
+
+                    document.documentElement.classList.add('authenticated');
+                    document.body.classList.add('authenticated');
 
                     const sideDisp = document.getElementById('sidebar-officer-email');
                     if (sideDisp) sideDisp.innerText = data.officer_email || cachedOfficerPassword || 'arnnavpanda@gmail.com';
 
-                    document.getElementById('soc-auth-overlay').style.display = 'none';
                     showToast('✅ Identity Verified! Cyber Sentinel SOC Unlocked.', 'success');
                     loadSecurityOverview();
                     probeServerANow();
@@ -3316,6 +3443,8 @@
             sessionStorage.removeItem('securityOfficerLoggedIn');
             sessionStorage.removeItem('officerEmail');
             document.cookie = "security_officer_logged_in=; path=/; max-age=0";
+            document.documentElement.classList.remove('authenticated');
+            document.body.classList.remove('authenticated');
             resetToStep1();
             initSocAuth();
         }
@@ -3330,89 +3459,36 @@
             window.location.href = 'https://jsm-chamber-cuttack-odisha-30.vercel.app/admin-login.html';
         }
 
-        // Initialize on load
+        // Strict Authentication Gate on Load
         document.addEventListener('DOMContentLoaded', () => {
+            const isAuth = sessionStorage.getItem('soc_officer_authenticated') === 'true';
+            if (!isAuth) {
+                document.documentElement.classList.remove('authenticated');
+                document.body.classList.remove('authenticated');
+                initSocAuth();
+                return; // STOP! No dashboard data loaded until 100% verified!
+            }
+
+            document.documentElement.classList.add('authenticated');
+            document.body.classList.add('authenticated');
             loadSecurityOverview();
-            // Polling interval every 30 seconds for live telemetry
+            probeServerANow();
+
+            // Telemetry poller every 30s
             setInterval(() => {
+                if (sessionStorage.getItem('soc_officer_authenticated') !== 'true') return;
                 if (currentActiveSection === 'overview') loadSecurityOverview();
                 if (currentActiveSection === 'threats') loadThreats();
                 if (currentActiveSection === 'databases') loadDatabaseSecurityStats();
             }, 30000);
+
+            // Server A probe every 5s
+            setInterval(() => {
+                if (sessionStorage.getItem('soc_officer_authenticated') !== 'true') return;
+                probeServerANow();
+            }, 5000);
         });
     </script>
 
-    <!-- SECURITY OFFICER OTP LOGIN OVERLAY -->
-    <div id="soc-auth-overlay" class="soc-auth-overlay" style="display: none;">
-        <div class="soc-auth-card">
-            <div class="soc-auth-icon">🛡️</div>
-            <h2 style="font-family: 'Playfair Display', Georgia, serif; color: #fff; margin: 0 0 6px 0; font-size: 1.45rem;">
-                Cyber Sentinel SOC
-            </h2>
-            <p style="color: #D4AF37; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; margin-bottom: 20px;">
-                Security Officer Authentication
-            </p>
-
-            <div id="auth-alert-box" class="auth-alert" style="display: none;"></div>
-
-            <!-- STEP 1: Security Officer Login (ID: JSM, Password: Email) -->
-            <div id="auth-step-1">
-                <form id="soc-login-form" onsubmit="event.preventDefault(); submitSocLogin();">
-                    <div style="text-align: left; margin-bottom: 14px;">
-                        <label style="font-size: 0.78rem; font-weight: 700; color: #cbd5e1; text-transform: uppercase; letter-spacing: 0.8px; display: block; margin-bottom: 6px;">
-                            Security Officer User ID
-                        </label>
-                        <input type="text" id="soc-user-id" required placeholder="Enter User ID (e.g. JSM)" autocomplete="username"
-                               style="width: 100%; padding: 11px 14px; background: #050c17; border: 1.5px solid rgba(212,175,55,0.4); border-radius: 8px; color: #fff; font-size: 0.95rem; box-sizing: border-box; outline: none; transition: border-color 0.2s;"
-                               onfocus="this.style.borderColor='#D4AF37'" onblur="this.style.borderColor='rgba(212,175,55,0.4)'">
-                    </div>
-
-                    <div style="text-align: left; margin-bottom: 14px;">
-                        <label style="font-size: 0.78rem; font-weight: 700; color: #cbd5e1; text-transform: uppercase; letter-spacing: 0.8px; display: block; margin-bottom: 6px;">
-                            Password (Registered Officer Email)
-                        </label>
-                        <input type="password" id="soc-password" required placeholder="Enter Registered Officer Email" autocomplete="current-password"
-                               style="width: 100%; padding: 11px 14px; background: #050c17; border: 1.5px solid rgba(212,175,55,0.4); border-radius: 8px; color: #fff; font-size: 0.95rem; box-sizing: border-box; outline: none; transition: border-color 0.2s;"
-                               onfocus="this.style.borderColor='#D4AF37'" onblur="this.style.borderColor='rgba(212,175,55,0.4)'">
-                        <small style="color: #94a3b8; font-size: 0.74rem; display: block; margin-top: 6px; line-height: 1.35;">
-                            🛡️ Security Officers: Enter User ID <strong>JSM</strong> and your registered email address as password.
-                        </small>
-                    </div>
-
-                    <button type="submit" id="btn-request-otp" class="btn-soc btn-gold" style="width: 100%; justify-content: center; padding: 13px; font-size: 0.95rem; margin-top: 10px;">
-                        🔐 Authenticate &amp; Dispatch 2FA OTP
-                    </button>
-                </form>
-                <div style="margin-top: 18px; text-align: center; font-size: 0.72rem; color: #64748b; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 12px;">
-                    ⚖️ Access Strictly Restricted to Authorized Security Personnel
-                </div>
-            </div>
-
-            <!-- STEP 2: Verify OTP -->
-            <div id="auth-step-2" style="display: none;">
-                <p style="color: #cbd5e1; font-size: 0.86rem; margin-bottom: 14px;">
-                    Enter the 6-digit code dispatched to <strong style="color: #00f2fe;" id="auth-sent-target-display">your email</strong>:
-                </p>
-                <div style="margin-bottom: 16px;">
-                    <input type="text" id="soc-otp-input" maxlength="6" pattern="[0-9]{6}" placeholder="••••••" autocomplete="one-time-code" inputmode="numeric" style="width: 100%; text-align: center; font-size: 2.2rem; letter-spacing: 12px; font-weight: 800; font-family: monospace; background: #050c17; border: 2px solid #D4AF37; border-radius: 10px; color: #fff; padding: 10px; box-sizing: border-box;">
-                </div>
-                <div style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 16px;">
-                    ⏱️ Code expires in: <strong id="auth-otp-timer" style="color: #fde047;">05:00</strong>
-                </div>
-                <button id="btn-verify-otp" class="btn-soc btn-gold" onclick="verifySocOtp()" style="width: 100%; justify-content: center; padding: 13px; font-size: 0.95rem; margin-bottom: 10px;">
-                    ✅ Verify &amp; Unlock SOC
-                </button>
-                <div style="display: flex; gap: 10px;">
-                    <button class="btn-soc btn-outline-soc" onclick="resetToStep1()" style="flex: 1; justify-content: center; font-size: 0.8rem;">
-                        ← Back
-                    </button>
-                    <button class="btn-soc btn-outline-soc" id="btn-resend-soc-otp" onclick="resendSocOtp()" style="flex: 1; justify-content: center; font-size: 0.8rem;">
-                        🔄 Resend Code
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-</body>
+    </body>
 </html>
