@@ -956,6 +956,29 @@
         </div>
     </div>
 
+    <!-- CRITICAL EMERGENCY CYBER ATTACK ALARM SHOW BANNER -->
+    <div id="cyber-attack-alarm-show" style="display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 99999999; background: linear-gradient(135deg, #7f1d1d, #ef4444); color: #ffffff; padding: 14px 24px; box-shadow: 0 10px 40px rgba(239, 68, 68, 0.75); border-bottom: 3px solid #ffffff; animation: serverDownFlash 1s infinite alternate; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+            <div style="font-size: 30px; animation: pulseRed 0.8s infinite;">🚨</div>
+            <div>
+                <div style="font-size: 1.15rem; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; text-shadow: 0 2px 8px rgba(0,0,0,0.5);">
+                    CRITICAL ALARM: CYBER ATTACK! CYBER ATTACK! ANYONE TRY TO LOGIN · EMERGENCY!
+                </div>
+                <div id="cyber-attack-alarm-sub" style="font-size: 0.82rem; color: #fee2e2; margin-top: 2px;">
+                    Unauthorized Admin Panel Unlock / Login Attempt Detected · IP Access Locked by Cyber Sentinel SOC
+                </div>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <button onclick="stopCyberAttackAlarm()" style="background: rgba(0,0,0,0.45); border: 1.5px solid #ffffff; color: #ffffff; padding: 7px 16px; border-radius: 8px; font-weight: 800; font-size: 0.82rem; cursor: pointer; transition: all 0.2s;">
+                🔇 Mute Alarm
+            </button>
+            <button onclick="dismissCyberAttackAlert()" style="background: #ffffff; color: #991b1b; border: none; padding: 7px 18px; border-radius: 8px; font-weight: 900; font-size: 0.82rem; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3); transition: all 0.2s;">
+                🛡️ Dismiss &amp; Clear Alarm
+            </button>
+        </div>
+    </div>
+
     <!-- COMPULSORY SECURITY OFFICER LOGIN (NO LOGIN, NO DASHBOARD) -->
     <div id="soc-login-screen">
         <div class="soc-auth-card">
@@ -3180,6 +3203,11 @@
                 const data = await res.json();
                 if (!res.ok) return;
 
+                // Real-time Cyber Attack & Unauthorized Admin Unlock Alarm
+                if (data.cyber_attack || data.active_cyber_attack) {
+                    startCyberAttackAlarm(data.attack_details || 'CRITICAL: Unauthorized Admin Panel Unlock / Login Attempt Detected · IP Access Locked');
+                }
+
                 // Master status
                 updateStatusUI(data.public_page_status);
 
@@ -4113,6 +4141,77 @@
             }
         }
 
+        function speakCyberAttackVoice() {
+            if (!isAlarmSoundEnabled) return;
+            try {
+                if ('speechSynthesis' in window) {
+                    window.speechSynthesis.cancel();
+                    const utterance = new SpeechSynthesisUtterance("Cyber attack! Cyber attack! Anyone try to login! Emergency!");
+                    utterance.rate = 1.05;
+                    utterance.pitch = 1.05;
+                    utterance.volume = 1.0;
+                    utterance.lang = 'en-US';
+                    window.speechSynthesis.speak(utterance);
+                }
+            } catch (err) {
+                console.warn('Voice speech warning notice:', err);
+            }
+        }
+
+        let cyberAttackAlarmInterval = null;
+        let isCyberAttackMuted = false;
+
+        function startCyberAttackAlarm(details = '') {
+            if (isCyberAttackMuted) return;
+            const alarmShow = document.getElementById('cyber-attack-alarm-show');
+            const detailEl = document.getElementById('cyber-attack-alarm-sub');
+            if (detailEl && details) {
+                detailEl.innerText = details;
+            }
+            if (alarmShow) alarmShow.style.display = 'flex';
+
+            if (cyberAttackAlarmInterval) return;
+
+            playCyberAlertSiren();
+            setTimeout(() => { speakCyberAttackVoice(); }, 350);
+
+            cyberAttackAlarmInterval = setInterval(() => {
+                if (!isAlarmSoundEnabled || isCyberAttackMuted) return;
+                playCyberAlertSiren();
+                setTimeout(() => { speakCyberAttackVoice(); }, 350);
+            }, 6000);
+        }
+
+        function stopCyberAttackAlarm() {
+            isCyberAttackMuted = true;
+            const alarmShow = document.getElementById('cyber-attack-alarm-show');
+            if (alarmShow) alarmShow.style.display = 'none';
+
+            if ('speechSynthesis' in window) {
+                try { window.speechSynthesis.cancel(); } catch (e) {}
+            }
+
+            if (cyberAttackAlarmInterval) {
+                clearInterval(cyberAttackAlarmInterval);
+                cyberAttackAlarmInterval = null;
+            }
+        }
+
+        async function dismissCyberAttackAlert() {
+            stopCyberAttackAlarm();
+            try {
+                await fetch('/api/security/dismiss-cyber-attack', {
+                    method: 'POST',
+                    headers: { 'X-Admin-Request': 'true' }
+                });
+                showToast('🛡️ Cyber Attack Alarm acknowledged and resolved.', 'info');
+                isCyberAttackMuted = false;
+                loadSecurityOverview();
+            } catch(e) {
+                console.warn('Dismiss error:', e);
+            }
+        }
+
         function toggleAlertSound() {
             initAudioContext();
             isAlarmSoundEnabled = !isAlarmSoundEnabled;
@@ -4239,6 +4338,11 @@
                         topDot.className = 'pulse-indicator pulse-down';
                         topText.innerText = 'Server A: CRASHED';
                     }
+                }
+
+                // Real-time Cyber Attack & Unauthorized Admin Panel Unlock Alarm
+                if (data.cyber_attack || data.active_cyber_attack) {
+                    startCyberAttackAlarm(data.attack_details || 'CRITICAL: Unauthorized Admin Panel Unlock / Login Attempt Detected · IP Access Locked');
                 }
 
                 // Render X & Y Axis Timeline Graph

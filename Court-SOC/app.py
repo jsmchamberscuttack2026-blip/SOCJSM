@@ -736,6 +736,34 @@ def check_server_a_status():
         if len(_server_a_history) > 30:
             _server_a_history = _server_a_history[-30:]
 
+        # Real-time Cyber Attack & Unauthorized Admin Unlock Detector
+        active_cyber_attack = False
+        attack_details = ""
+        now_epoch = get_now_ist().timestamp()
+        try:
+            if security_incidents_col is not None:
+                recent_inc = security_incidents_col.find_one({
+                    "severity": "critical",
+                    "status": {"$ne": "resolved"},
+                    "category": {"$in": ["Brute Force", "Lockdown Breach Attempt", "Unauthorized Admin Access", "Rate Limit Flood"]}
+                }, sort=[("_id", -1)])
+                if recent_inc:
+                    inc_epoch = recent_inc.get("timestamp_epoch", 0)
+                    if not inc_epoch or (now_epoch - inc_epoch <= 900):
+                        active_cyber_attack = True
+                        attack_details = f"{recent_inc.get('title', 'Cyber Attack Alert')} · IP {recent_inc.get('ip', 'Restricted')} · Emergency Access Locked"
+
+            if not active_cyber_attack and security_logs_col is not None:
+                recent_log = security_logs_col.find_one({
+                    "event_type": {"$in": ["unauthorized_login_during_lockdown", "login_blocked_locked"]},
+                    "timestamp_epoch": {"$gte": now_epoch - 600}
+                }, sort=[("_id", -1)])
+                if recent_log:
+                    active_cyber_attack = True
+                    attack_details = f"Unauthorized Admin Panel Unlock Attempt · IP {recent_log.get('ip', 'Restricted')} · Access Locked"
+        except Exception as check_err:
+            logging.error(f"Error checking cyber attack status: {check_err}")
+
         return jsonify({
             "server_a_status": state,
             "health": health,
@@ -747,6 +775,9 @@ def check_server_a_status():
             "main_server_url": MAIN_SERVER_URL,
             "timestamp_ist": get_now_ist().strftime("%d %b %Y, %I:%M:%S %p"),
             "history": _server_a_history,
+            "cyber_attack": active_cyber_attack,
+            "active_cyber_attack": active_cyber_attack,
+            "attack_details": attack_details,
             "message": msg
         }), 200
     except Exception as e:
@@ -773,9 +804,26 @@ def check_server_a_status():
             "main_server_url": MAIN_SERVER_URL,
             "timestamp_ist": get_now_ist().strftime("%d %b %Y, %I:%M:%S %p"),
             "history": _server_a_history,
+            "cyber_attack": False,
+            "active_cyber_attack": False,
+            "attack_details": "",
             "error": str(e),
             "message": "🚨 Main Chamber Operations Server A is DOWN / UNREACHABLE! Cyber Sentinel SOC is protecting chamber data."
         }), 200
+
+@app.route('/api/security/dismiss-cyber-attack', methods=['POST'])
+def dismiss_cyber_attack():
+    try:
+        if security_incidents_col is not None:
+            security_incidents_col.update_many({
+                "severity": "critical",
+                "status": {"$ne": "resolved"},
+                "category": {"$in": ["Brute Force", "Lockdown Breach Attempt", "Unauthorized Admin Access", "Rate Limit Flood"]}
+            }, {"$set": {"status": "resolved", "resolved_at": get_now_ist().strftime("%d %b %Y, %I:%M %p"), "resolved_by": "Security Officer"}})
+        log_security_event("cyber_attack_alarm_dismissed", "info", "Security Officer acknowledged and dismissed Cyber Attack Alarm.")
+        return jsonify({"success": True, "message": "Cyber Attack Alarm acknowledged and cleared."}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/security/database-stats', methods=['GET'])
 def get_database_stats():
@@ -967,6 +1015,21 @@ def get_security_overview():
                 l["_id"] = str(l["_id"])
                 recent_logs.append(l)
 
+        active_cyber_attack = False
+        attack_details = ""
+        now_epoch = get_now_ist().timestamp()
+        if security_incidents_col is not None:
+            recent_inc = security_incidents_col.find_one({
+                "severity": "critical",
+                "status": {"$ne": "resolved"},
+                "category": {"$in": ["Brute Force", "Lockdown Breach Attempt", "Unauthorized Admin Access", "Rate Limit Flood"]}
+            }, sort=[("_id", -1)])
+            if recent_inc:
+                inc_epoch = recent_inc.get("timestamp_epoch", 0)
+                if not inc_epoch or (now_epoch - inc_epoch <= 900):
+                    active_cyber_attack = True
+                    attack_details = f"{recent_inc.get('title', 'Cyber Attack Alert')} · IP {recent_inc.get('ip', 'Restricted')} · Emergency Access Locked"
+
         return jsonify({
             "overall_status": overall_status,
             "status_reason": status_reason,
@@ -978,6 +1041,9 @@ def get_security_overview():
             "security_officer_email": security_officer_email or "Security Sentinel",
             "last_scan": last_scan,
             "recent_logs": recent_logs,
+            "cyber_attack": active_cyber_attack,
+            "active_cyber_attack": active_cyber_attack,
+            "attack_details": attack_details,
             "three_week_audit": get_three_week_audit_info(),
             "server_uptime": {
                 "status": "Healthy",
